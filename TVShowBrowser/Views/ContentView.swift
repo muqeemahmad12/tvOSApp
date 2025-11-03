@@ -122,7 +122,7 @@ struct ContentView: View {
                                         let ad = adRows[rowIndex][index]
                                         NavigationLink(value: ad) {
                                             AdContentView(ad: ad.adType)
-                                                .frame(width: 1280, height: 720)
+//                                                .frame(width: 1280, height: 720)
                                                 .cornerRadius(12)
                                         }
                                     }

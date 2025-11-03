@@ -52,14 +52,44 @@ struct VASTPlayerView: UIViewControllerRepresentable {
 
             setupContentPlayer()
             setupAdsLoader()
+            getScreenSize()
         }
+         
+        func getScreenSize() {
             
+            let screenBounds = UIScreen.main.bounds
+            let width = screenBounds.width
+            let height = screenBounds.height
+
+            print("Screen size in points: \(width)x\(height)")
+
+            let nativeWidth = UIScreen.main.nativeBounds.width
+            let nativeHeight = UIScreen.main.nativeBounds.height
+
+            print("Screen size in pixels: \(nativeWidth)x\(nativeHeight)")
+
+            if let windowScene = UIApplication.shared.connectedScenes.first as? UIWindowScene,
+               let window = windowScene.windows.first {
+                let safeAreaInsets = window.safeAreaInsets
+                print("Safe area insets: \(safeAreaInsets)")
+            }
+
+            if #available(tvOS 16.0, *) {
+                print(ProcessInfo.processInfo.operatingSystemVersionString)
+            }
+
+            
+        }
         class FocusableView: UIView {
             override var canBecomeFocused: Bool { true }
         }
 
         private func setupContentPlayer() {
-            player = AVPlayer(url: contentURL)
+            let firstVideo = AVPlayerItem(url: contentURL)
+            let secondVideo = AVPlayerItem(url: URL(string: "https://storage.googleapis.com/interactive-media-ads/media/android.mp4")!)
+            player = AVQueuePlayer(items: [firstVideo, secondVideo])
+
+//            player = AVPlayer(url: contentURL)
             playerVC = AVPlayerViewController()
             playerVC.player = player
             playerVC.showsPlaybackControls = false

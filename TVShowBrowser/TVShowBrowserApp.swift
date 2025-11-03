@@ -9,9 +9,24 @@ import SwiftUI
 
 @main
 struct TVShowBrowserApp: App {
+    @StateObject private var listVM = AdListViewModel()
+    
     var body: some Scene {
         WindowGroup {
-            ContentView()
+//            ContentView()
+//            AdListView()
+            VStack {
+                        AdPlayerView(listVM: listVM)
+//                            .frame(height: 400)
+//                            .cornerRadius(16)
+//                            .shadow(radius: 10)
+//                            .padding()
+//                        
+//                        Spacer()
+                    }
+                    .onAppear {
+                        listVM.fetchAds(screenId: "123")
+                    }
         }
     }
 }
