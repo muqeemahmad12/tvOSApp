@@ -3,4 +3,84 @@
    uuid = "31501C58-834F-4D82-8BDD-3E375216014E"
    type = "0"
    version = "2.0">
+   <Breakpoints>
+      <BreakpointProxy
+         BreakpointExtensionID = "Xcode.Breakpoint.FileBreakpoint">
+         <BreakpointContent
+            uuid = "98F4F065-BCFC-426E-8977-9FEECF0D0554"
+            shouldBeEnabled = "Yes"
+            ignoreCount = "0"
+            continueAfterRunningActions = "No"
+            filePath = "TVShowBrowser/ViewModels/MyAdViewModels/AdPlayerViewModelNew.swift"
+            startingColumnNumber = "9223372036854775807"
+            endingColumnNumber = "9223372036854775807"
+            startingLineNumber = "89"
+            endingLineNumber = "89"
+            landmarkName = "downloadAsset(_:)"
+            landmarkType = "7">
+            <Locations>
+               <Location
+                  uuid = "98F4F065-BCFC-426E-8977-9FEECF0D0554 - 6a6e0cb9328eeb91"
+                  shouldBeEnabled = "Yes"
+                  ignoreCount = "0"
+                  continueAfterRunningActions = "No"
+                  symbolName = "(3) suspend resume partial function for TVShowBrowser.AdPlayerViewModelNew.downloadAsset(Swift.String) async -&gt; Swift.Optional&lt;Foundation.URL&gt;"
+                  moduleName = "TVShowBrowser.debug.dylib"
+                  usesParentBreakpointCondition = "Yes"
+                  urlString = "file:///Users/muqeem.ahmad/Documents/Projects/TVShowBrowser/TVShowBrowser/ViewModels/MyAdViewModels/AdPlayerViewModelNew.swift"
+                  startingColumnNumber = "9223372036854775807"
+                  endingColumnNumber = "9223372036854775807"
+                  startingLineNumber = "89"
+                  endingLineNumber = "89">
+               </Location>
+               <Location
+                  uuid = "98F4F065-BCFC-426E-8977-9FEECF0D0554 - 39d575efae1b4990"
+                  shouldBeEnabled = "Yes"
+                  ignoreCount = "0"
+                  continueAfterRunningActions = "No"
+                  symbolName = "(4) suspend resume partial function for TVShowBrowser.AdPlayerViewModelNew.downloadAsset(Swift.String) async -&gt; Swift.Optional&lt;Foundation.URL&gt;"
+                  moduleName = "TVShowBrowser.debug.dylib"
+                  usesParentBreakpointCondition = "Yes"
+                  urlString = "file:///Users/muqeem.ahmad/Documents/Projects/TVShowBrowser/TVShowBrowser/ViewModels/MyAdViewModels/AdPlayerViewModelNew.swift"
+                  startingColumnNumber = "9223372036854775807"
+                  endingColumnNumber = "9223372036854775807"
+                  startingLineNumber = "89"
+                  endingLineNumber = "89">
+               </Location>
+            </Locations>
+         </BreakpointContent>
+      </BreakpointProxy>
+      <BreakpointProxy
+         BreakpointExtensionID = "Xcode.Breakpoint.FileBreakpoint">
+         <BreakpointContent
+            uuid = "D8BA5C65-FABC-45F9-A6FC-6603825405F4"
+            shouldBeEnabled = "Yes"
+            ignoreCount = "0"
+            continueAfterRunningActions = "No"
+            filePath = "TVShowBrowser/ViewModels/MyAdViewModels/AdPlayerViewModelNew.swift"
+            startingColumnNumber = "9223372036854775807"
+            endingColumnNumber = "9223372036854775807"
+            startingLineNumber = "87"
+            endingLineNumber = "87"
+            landmarkName = "downloadAsset(_:)"
+            landmarkType = "7">
+         </BreakpointContent>
+      </BreakpointProxy>
+      <BreakpointProxy
+         BreakpointExtensionID = "Xcode.Breakpoint.FileBreakpoint">
+         <BreakpointContent
+            uuid = "E59B7CE5-526C-482C-89BE-05B5A8AA4442"
+            shouldBeEnabled = "Yes"
+            ignoreCount = "0"
+            continueAfterRunningActions = "No"
+            filePath = "TVShowBrowser/ViewModels/MyAdViewModels/AdPlayerViewModelNew.swift"
+            startingColumnNumber = "9223372036854775807"
+            endingColumnNumber = "9223372036854775807"
+            startingLineNumber = "167"
+            endingLineNumber = "167"
+            landmarkName = "playImageAd()"
+            landmarkType = "7">
+         </BreakpointContent>
+      </BreakpointProxy>
+   </Breakpoints>
 </Bucket>

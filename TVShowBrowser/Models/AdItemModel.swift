@@ -45,3 +45,18 @@ struct AdItemModel: Codable, Identifiable, Equatable {
         lhs.itemid == rhs.itemid && lhs.sequence == rhs.sequence
     }
 }
+
+extension AdItemModel {
+    var isTooLarge: Bool {
+        // Example itemsize format: "3840x2160"
+        let components = itemsize.lowercased().split(separator: "x")
+        guard components.count == 2,
+              let width = Int(components[0]),
+              let height = Int(components[1]) else {
+            return false
+        }
+
+        // Skip if above 1920x1080
+        return width > 1920 || height > 1080
+    }
+}

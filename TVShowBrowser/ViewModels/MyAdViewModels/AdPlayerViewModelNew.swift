@@ -22,11 +22,21 @@ final class AdPlayerViewModelNew: ObservableObject {
     private var localURLs: [String: URL] = [:]
     private var currentIndex = 0
     private var timer: Timer?
-
+    
     func startPlayback(with ads: [AdItemModel]) {
-        guard !ads.isEmpty else { return }
-        self.ads = ads.sorted { $0.sequence < $1.sequence }
+        // Filter out large assets (above 1920x1080)
+        let validAds = ads
+            .filter { !$0.isTooLarge }
+            .sorted { $0.sequence < $1.sequence }
+
+        guard !validAds.isEmpty else {
+            print("⚠️ No valid ads found after filtering large assets.")
+            return
+        }
+
+        self.ads = validAds
         preloadAllAssets()
+        checkFileManager()
     }
 
     func stop() {
@@ -45,6 +55,11 @@ final class AdPlayerViewModelNew: ObservableObject {
             var completed = 0.0
 
             for ad in ads {
+                guard !ad.isTooLarge else {
+                    print("⏭️ Skipping large ad (\(ad.itemsize)) with URL: \(ad.itemurl)")
+                    continue
+                }
+
                 if let url = await downloadAsset(ad.itemurl) {
                     localURLs[ad.itemid] = url
                 }
@@ -75,7 +90,49 @@ final class AdPlayerViewModelNew: ObservableObject {
             return nil
         }
     }
+    
+    func checkFileManager() {
+        let fm = FileManager.default
+        let paths = [
+            ("Documents", fm.urls(for: .documentDirectory, in: .userDomainMask).first!),
+            ("Caches", fm.urls(for: .cachesDirectory, in: .userDomainMask).first!),
+            ("Temporary", fm.temporaryDirectory)
+        ]
+        
+        for (name, path) in paths {
+            print("🔍 Checking \(name): \(path.path)")
+            var totalSize: UInt64 = 0
+            
+            if let files = try? fm.contentsOfDirectory(at: path, includingPropertiesForKeys: [.fileSizeKey], options: .skipsHiddenFiles) {
+                if files.isEmpty {
+                    print("  ⚠️ No files here")
+                } else {
+                    for file in files {
+                        do {
+                            let attributes = try fm.attributesOfItem(atPath: file.path)
+                            let fileSize = attributes[.size] as? UInt64 ?? 0
+                            totalSize += fileSize
+                            
+                            // Print per-file size in KB or MB
+                            let sizeKB = Double(fileSize) / 1024.0
+                            let sizeString = sizeKB > 1024 ? String(format: "%.2f MB", sizeKB / 1024.0)
+                                                           : String(format: "%.2f KB", sizeKB)
+                            print("  📄 \(file.lastPathComponent) — \(sizeString)")
+                            
+                        } catch {
+                            print("  ❌ Error reading \(file.lastPathComponent): \(error.localizedDescription)")
+                        }
+                    }
+                }
+            }
+            
+            // Print total size for this folder
+            let totalMB = Double(totalSize) / (1024.0 * 1024.0)
+            print("📦 Total \(name) folder size: \(String(format: "%.2f MB", totalMB))\n")
+        }
+    }
 
+    
     private func playCurrent() {
         guard currentIndex < ads.count else { return }
         let ad = ads[currentIndex]
