@@ -11,8 +11,8 @@ final class APIService {
     static let shared = APIService()
     private init() {}
 
-    func fetchItemSeqInfo(screenId: String, completion: @escaping (Result<ItemSeqInfoResponse, Error>) -> Void) {
-        guard let url = URL(string: "https://qa-dam-ingestion.doceree.com/api/item_seq_info") else {
+    func fetchItemSeqInfo(screenId: String, reqNum: Int, completion: @escaping (Result<ItemSeqInfoResponse, Error>) -> Void) {
+        guard let url = URL(string: "https://qa-drs-service.doceree.com/drs/v2/quest") else {
             completion(.failure(NSError(domain: "Invalid URL", code: 0)))
             return
         }
@@ -21,7 +21,7 @@ final class APIService {
         request.httpMethod = "POST"
         request.setValue("application/json", forHTTPHeaderField: "Content-Type")
 
-        let payload: [String: Any] = ["screenid": screenId]
+        let payload: [String: Any] = ["screenid": screenId, "reqNum": 2]
         request.httpBody = try? JSONSerialization.data(withJSONObject: payload, options: [])
 
         URLSession.shared.dataTask(with: request) { data, response, error in

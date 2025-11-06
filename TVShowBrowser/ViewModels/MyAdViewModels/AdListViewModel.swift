@@ -10,28 +10,38 @@ import Combine
 
 @MainActor
 final class AdListViewModel: ObservableObject {
-    @Published var ads: [AdItemModel] = []
+    @Published var ads: [AdItemModel] = []                // Flattened list (optional)
+    @Published var groupedAds: [AdSequenceGroup] = []     // Grouped list (1–3 per sequence)
     @Published var isLoading = false
     @Published var errorMessage: String?
 
-    func fetchAds(screenId: String) {
+    func fetchAds(screenId: String, reqNum: Int) {
         isLoading = true
         errorMessage = nil
 
-        APIService.shared.fetchItemSeqInfo(screenId: screenId) { [weak self] result in
+        APIService.shared.fetchItemSeqInfo(screenId: screenId, reqNum: reqNum) { [weak self] result in
             DispatchQueue.main.async {
                 guard let self = self else { return }
                 self.isLoading = false
 
                 switch result {
                 case .success(let response):
-                    print("✅ API Success — Total Items: \(response.items.count)")
-                        response.items.forEach { item in
-                            print("🔹 \(item.itemid): \(item.assettype) — \(item.itemurl) - \(item.itemsize)")
+                    // ✅ Keep both grouped and flat
+                    let groups = response.groupedAds
+                    self.groupedAds = groups
+                    self.ads = groups.flatMap { $0.ii }
+
+                    print("✅ API Success — Total Groups: \(groups.count)")
+                    for group in groups {
+                        print("▶️ Sequence \(group.sequence): \(group.ii.count) ads")
+                        for ad in group.ii {
+                            print("   🔹 \(ad.itemid): \(ad.assettype) — \(ad.itemurl)")
                         }
-                    self.ads = response.items.sorted { $0.sequence < $1.sequence }
+                    }
+
                 case .failure(let error):
                     self.errorMessage = error.localizedDescription
+                    print("❌ API Failed:", error.localizedDescription)
                 }
             }
         }

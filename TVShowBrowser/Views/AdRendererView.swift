@@ -57,7 +57,10 @@ struct AdRendererView: View {
                 ProgressView("Loading Ads…")
             }
         }
-        .transition(.opacity)
+        .transition(.asymmetric(
+            insertion: .move(edge: .trailing).combined(with: .opacity),
+            removal: .move(edge: .leading).combined(with: .opacity)
+        ))
         .animation(.easeInOut(duration: 1.0), value: viewModel.currentAd)
         .frame(width: 1000, height: 600)
         .background(Color.black)

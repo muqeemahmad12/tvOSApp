@@ -9,176 +9,149 @@ import Foundation
 import AVKit
 import SwiftUI
 
-// MARK: - Player ViewModel
 @MainActor
 final class AdPlayerViewModelNew: ObservableObject {
-    @Published var currentAd: AdItemModel?
-    @Published var player: AVPlayer?
+    // MARK: - Published
+    @Published var currentGroup: AdSequenceGroup?
+    @Published var nextGroup: AdSequenceGroup?
+    @Published var groupedAds: [AdSequenceGroup] = []
+    @Published var imageCache: [String: UIImage] = [:]
+    @Published var slideOffset: CGFloat = 0.0
     @Published var isPreloading = false
     @Published var preloadProgress: Double = 0.0
-    @Published var transitionOpacity: Double = 1.0
+    @Published var errorMessage: String?
 
-    private var ads: [AdItemModel] = []
-    private var localURLs: [String: URL] = [:]
+    // MARK: - Private
     private var currentIndex = 0
+    var activePlayer: AVPlayer?
     private var timer: Timer?
-    
-    func startPlayback(with ads: [AdItemModel]) {
-        // Filter out large assets (above 1920x1080)
-        let validAds = ads
-            .filter { !$0.isTooLarge }
-            .sorted { $0.sequence < $1.sequence }
+    private var syncTimer: Timer?
+    private var reqNum = 1
+    private var screenId = "174"
 
-        guard !validAds.isEmpty else {
-            print("⚠️ No valid ads found after filtering large assets.")
+    // MARK: - Public entry point
+    func startPlayback(with groups: [AdSequenceGroup]) {
+        guard !groups.isEmpty else {
+            print("⚠️ No groups to play.")
             return
         }
-
-        self.ads = validAds
-        preloadAllAssets()
-        checkFileManager()
+        groupedAds = groups
+        currentIndex = 0
+        playCurrentGroup()
+        startAutoSync(screenId: screenId)
     }
 
-    func stop() {
-        NotificationCenter.default.removeObserver(self)
-        timer?.invalidate()
-        player?.pause()
-    }
+    // MARK: - Play a full group (1 video + 2 images)
+    private func playCurrentGroup() {
+        guard currentIndex < groupedAds.count else { return }
+        let group = groupedAds[currentIndex]
+        currentGroup = group
+        print("▶️ Playing group \(group.sequence) — \(group.ii.count) ads")
 
-    private func preloadAllAssets() {
-        isPreloading = true
-        preloadProgress = 0.0
-        localURLs.removeAll()
+        // Prepare video player (expect 1 video per group)
+        if let videoAd = group.ii.first(where: { $0.assettype.lowercased() == "video" }),
+           let videoURL = URL(string: videoAd.itemurl) {
+            activePlayer = AVPlayer(url: videoURL)
+            activePlayer?.play()
 
-        Task {
-            let total = Double(ads.count)
-            var completed = 0.0
-
-            for ad in ads {
-                guard !ad.isTooLarge else {
-                    print("⏭️ Skipping large ad (\(ad.itemsize)) with URL: \(ad.itemurl)")
-                    continue
-                }
-
-                if let url = await downloadAsset(ad.itemurl) {
-                    localURLs[ad.itemid] = url
-                }
-                completed += 1
-                preloadProgress = completed / total
+            NotificationCenter.default.addObserver(
+                forName: .AVPlayerItemDidPlayToEndTime,
+                object: activePlayer?.currentItem,
+                queue: .main
+            ) { [weak self] _ in
+                self?.transitionToNextGroup()
             }
+        } else {
+            // No video -> fallback timer
+            startGroupTimer()
+        }
 
-            isPreloading = false
-            playCurrent()
+        // Preload images
+        Task {
+            for ad in group.ii where ad.assettype.lowercased() == "image" {
+                await self.loadImage(for: ad)
+            }
         }
     }
 
-    private func downloadAsset(_ urlString: String) async -> URL? {
-        guard let remoteURL = URL(string: urlString) else { return nil }
-        let fileName = remoteURL.lastPathComponent
-        let destination = FileManager.default.temporaryDirectory.appendingPathComponent(fileName)
-
-        if FileManager.default.fileExists(atPath: destination.path) {
-            return destination
-        }
+    // MARK: - Load image async
+    private func loadImage(for ad: AdItemModel) async {
+        guard imageCache[ad.itemurl] == nil,
+              let url = URL(string: ad.itemurl) else { return }
 
         do {
-            let (data, _) = try await URLSession.shared.data(from: remoteURL)
-            try data.write(to: destination)
-            return destination
+            let (data, _) = try await URLSession.shared.data(from: url)
+            if let image = UIImage(data: data) {
+                imageCache[ad.itemurl] = image
+                print("🖼️ Cached image:", ad.itemurl)
+            }
         } catch {
-            print("❌ Download failed: \(urlString) — \(error)")
-            return nil
+            print("❌ Failed to load image:", error)
         }
     }
-    
-    func checkFileManager() {
-        let fm = FileManager.default
-        let paths = [
-            ("Documents", fm.urls(for: .documentDirectory, in: .userDomainMask).first!),
-            ("Caches", fm.urls(for: .cachesDirectory, in: .userDomainMask).first!),
-            ("Temporary", fm.temporaryDirectory)
-        ]
+
+    // MARK: - Fallback timer if no video
+    private func startGroupTimer() {
+        timer?.invalidate()
+        timer = Timer.scheduledTimer(withTimeInterval: 20, repeats: false) { [weak self] _ in
+            self?.transitionToNextGroup()
+        }
+    }
+
+    // MARK: - Transition
+    private func transitionToNextGroup() {
+        withAnimation(.easeInOut(duration: 0.8)) {
+            slideOffset = -UIScreen.main.bounds.width
+        }
+
+        let screenBounds = UIScreen.main.bounds
+        let screenWidth = screenBounds.width
+        let screenHeight = screenBounds.height
+
+        print("Screen size: \(screenWidth)x\(screenHeight)")
         
-        for (name, path) in paths {
-            print("🔍 Checking \(name): \(path.path)")
-            var totalSize: UInt64 = 0
-            
-            if let files = try? fm.contentsOfDirectory(at: path, includingPropertiesForKeys: [.fileSizeKey], options: .skipsHiddenFiles) {
-                if files.isEmpty {
-                    print("  ⚠️ No files here")
-                } else {
-                    for file in files {
-                        do {
-                            let attributes = try fm.attributesOfItem(atPath: file.path)
-                            let fileSize = attributes[.size] as? UInt64 ?? 0
-                            totalSize += fileSize
-                            
-                            // Print per-file size in KB or MB
-                            let sizeKB = Double(fileSize) / 1024.0
-                            let sizeString = sizeKB > 1024 ? String(format: "%.2f MB", sizeKB / 1024.0)
-                                                           : String(format: "%.2f KB", sizeKB)
-                            print("  📄 \(file.lastPathComponent) — \(sizeString)")
-                            
-                        } catch {
-                            print("  ❌ Error reading \(file.lastPathComponent): \(error.localizedDescription)")
-                        }
-                    }
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.8) {
+            self.currentIndex += 1
+            if self.currentIndex >= self.groupedAds.count {
+                print("✅ All groups played, restarting.")
+                self.currentIndex = 0
+            }
+            self.slideOffset = 0
+            self.playCurrentGroup()
+        }
+    }
+
+    // MARK: - Auto Sync (unchanged)
+    func startAutoSync(screenId: String) {
+        syncAds(with: screenId)
+        syncTimer = Timer.scheduledTimer(withTimeInterval: 3 * 60, repeats: true) { [weak self] _ in
+            self?.syncAds(with: screenId)
+        }
+    }
+
+    private func syncAds(with screenId: String) {
+        print("🌐 Running periodic API sync...")
+        reqNum += 1
+        APIService.shared.fetchItemSeqInfo(screenId: screenId, reqNum: reqNum) { [weak self] result in
+            guard let self = self else { return }
+            DispatchQueue.main.async {
+                switch result {
+                case .success(let response):
+                    let groups = response.groupedAds
+                    self.groupedAds = groups
+                    print("✅ Synced \(groups.count) groups.")
+                case .failure(let error):
+                    print("❌ Sync failed:", error.localizedDescription)
                 }
             }
-            
-            // Print total size for this folder
-            let totalMB = Double(totalSize) / (1024.0 * 1024.0)
-            print("📦 Total \(name) folder size: \(String(format: "%.2f MB", totalMB))\n")
         }
     }
 
-    
-    private func playCurrent() {
-        guard currentIndex < ads.count else { return }
-        let ad = ads[currentIndex]
-        currentAd = ad
-
-        withAnimation(.easeInOut(duration: 0.5)) { transitionOpacity = 0.0 }
-        DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) {
-            withAnimation(.easeInOut(duration: 0.5)) { self.transitionOpacity = 1.0 }
-        }
-
-        if ad.assettype.lowercased() == "video" {
-            playVideo(ad)
-        } else {
-            playImageAd()
-        }
-    }
-
-    private func playVideo(_ ad: AdItemModel) {
-        guard let localURL = localURLs[ad.itemid] else {
-            playNext(); return
-        }
-
-        player = AVPlayer(url: localURL)
-        player?.play()
-
-        NotificationCenter.default.addObserver(forName: .AVPlayerItemDidPlayToEndTime, object: player?.currentItem, queue: .main) { [weak self] _ in
-            self?.playNext()
-        }
-    }
-
-    private func playImageAd() {
-        timer?.invalidate()
-        timer = Timer.scheduledTimer(withTimeInterval: 5, repeats: false) { [weak self] _ in
-            self?.playNext()
-        }
-    }
-
-    private func playNext() {
+    // MARK: - Stop
+    func stop() {
+        activePlayer?.pause()
         NotificationCenter.default.removeObserver(self)
         timer?.invalidate()
-        currentIndex += 1
-        if currentIndex >= ads.count { currentIndex = 0 }
-        playCurrent()
-    }
-
-    func localURL(for ad: AdItemModel) -> URL? {
-        localURLs[ad.itemid]
+        syncTimer?.invalidate()
     }
 }

@@ -7,13 +7,27 @@
 
 import Foundation
 
-// MARK: - Item Sequence Response
+// MARK: - Root Response
 struct ItemSeqInfoResponse: Codable {
-    let status: String
     let screenid: String
-    let items: [AdItemModel]
+    let status: String
+    let item1: [AdSequenceGroup]
 }
 
+// MARK: - Sequence group — can contain 1–3 ads
+struct AdSequenceGroup: Codable, Identifiable, Equatable {
+    var id: Int { sequence }
+    let facilityid: String
+    let sequence: Int
+    let ii: [AdItemModel]
+    let is_active: Bool
+    
+    static func == (lhs: AdSequenceGroup, rhs: AdSequenceGroup) -> Bool {
+        lhs.sequence == rhs.sequence
+    }
+}
+
+// MARK: - Ad Item
 struct AdItemModel: Codable, Identifiable, Equatable {
     var id: String { itemid }
 
@@ -21,42 +35,49 @@ struct AdItemModel: Codable, Identifiable, Equatable {
     let assettype: String
     let assetcat: String?
     let itemurl: String
-    let itemsize: String
-    let isFlex: Bool
-    let trackerlist: [String]
-    let isActive: Bool
-    let facilityid: String
-    let itemspeciality: String
-    let sequence: Int
+    let itemsize: String?
+    let isFlex: Bool?
+    let trackerlist: [String]?
+    let itemspeciality: String?
+    let subcampaignid: String?
     let schedulestarttime: String?
     let scheduleendtime: String?
-    let subcampaignid: String
+
+    // Enriched metadata (not part of JSON, set after mapping)
+    var sequence: Int?
+    var facilityid: String?
 
     enum CodingKeys: String, CodingKey {
         case itemid, assettype, assetcat, itemurl, itemsize
         case isFlex = "is_flex"
-        case trackerlist
-        case isActive = "is_active"
-        case facilityid, itemspeciality, sequence, schedulestarttime, scheduleendtime, subcampaignid
+        case trackerlist, itemspeciality, subcampaignid, schedulestarttime, scheduleendtime
     }
 
-    // ✅ Optional but helps define equality clearly
     static func == (lhs: AdItemModel, rhs: AdItemModel) -> Bool {
-        lhs.itemid == rhs.itemid && lhs.sequence == rhs.sequence
+        lhs.itemid == rhs.itemid && lhs.itemurl == rhs.itemurl
     }
 }
 
+// MARK: - Convenience Helpers (non-flattening)
+extension ItemSeqInfoResponse {
+    /// Each entry is a sequence group (preserves 1..N ads per screen)
+    var groupedAds: [AdSequenceGroup] {
+        item1
+            .filter { $0.is_active }
+            .sorted { $0.sequence < $1.sequence }
+    }
+}
+
+// size helper
 extension AdItemModel {
     var isTooLarge: Bool {
-        // Example itemsize format: "3840x2160"
-        let components = itemsize.lowercased().split(separator: "x")
+        guard let size = itemsize else { return false }
+        let components = size.lowercased().split(separator: "x")
         guard components.count == 2,
               let width = Int(components[0]),
               let height = Int(components[1]) else {
             return false
         }
-
-        // Skip if above 1920x1080
         return width > 1920 || height > 1080
     }
 }
