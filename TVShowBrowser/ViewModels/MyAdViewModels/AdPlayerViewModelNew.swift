@@ -13,7 +13,6 @@ import SwiftUI
 final class AdPlayerViewModelNew: ObservableObject {
     // MARK: - Published
     @Published var currentGroup: AdSequenceGroup?
-    @Published var nextGroup: AdSequenceGroup?
     @Published var groupedAds: [AdSequenceGroup] = []
     @Published var imageCache: [String: UIImage] = [:]
     @Published var slideOffset: CGFloat = 0.0
@@ -29,7 +28,18 @@ final class AdPlayerViewModelNew: ObservableObject {
     private var reqNum = 1
     private var screenId = "174"
 
-    // MARK: - Public entry point
+    // MARK: - File Manager helpers
+    private var fileManager: FileManager { .default }
+    private var adsCacheDir: URL {
+        let dir = fileManager.urls(for: .documentDirectory, in: .userDomainMask).first!.appendingPathComponent("AdsCache")
+        if !fileManager.fileExists(atPath: dir.path) {
+            try? fileManager.createDirectory(at: dir, withIntermediateDirectories: true)
+        }
+        return dir
+    }
+    private var localURLs: [String: URL] = [:]
+
+    // MARK: - Entry point
     func startPlayback(with groups: [AdSequenceGroup]) {
         guard !groups.isEmpty else {
             print("⚠️ No groups to play.")
@@ -37,36 +47,97 @@ final class AdPlayerViewModelNew: ObservableObject {
         }
         groupedAds = groups
         currentIndex = 0
-        playCurrentGroup()
-        startAutoSync(screenId: screenId)
+        Task {
+            await preloadAllAssets()
+            playCurrentGroup()
+            startAutoSync(screenId: screenId)
+        }
     }
 
-    // MARK: - Play a full group (1 video + 2 images)
+    // MARK: - Preload all assets before playback
+    private func preloadAllAssets() async {
+        isPreloading = true
+        preloadProgress = 0.0
+        localURLs.removeAll()
+
+        // Flatten all ads in all groups
+        let allAds = groupedAds.flatMap { $0.ii }
+        let total = Double(allAds.count)
+        var completed = 0.0
+
+        for ad in allAds {
+            if ad.isTooLarge {
+                print("⏭️ Skipping large asset (\(ad.itemsize ?? "unknown")) — \(ad.itemurl)")
+                completed += 1
+                await MainActor.run { preloadProgress = completed / total }
+                continue
+            }
+
+            if let url = await downloadAsset(ad.itemurl) {
+                localURLs[ad.itemurl] = url
+            }
+            completed += 1
+            await MainActor.run { preloadProgress = completed / total }
+        }
+
+        await MainActor.run {
+            isPreloading = false
+            print("✅ All assets downloaded to \(adsCacheDir.lastPathComponent)")
+            checkFileManager()
+        }
+    }
+
+    // MARK: - Download one asset
+    private func downloadAsset(_ remoteURLString: String) async -> URL? {
+        guard let remoteURL = URL(string: remoteURLString) else { return nil }
+        let fileName = remoteURL.lastPathComponent
+        let destination = adsCacheDir.appendingPathComponent(fileName)
+
+        if fileManager.fileExists(atPath: destination.path) {
+            return destination // use cached
+        }
+
+        do {
+            print("⬇️ Downloading:", fileName)
+            let (data, _) = try await URLSession.shared.data(from: remoteURL)
+            try data.write(to: destination)
+            print("💾 Saved:", fileName)
+            return destination
+        } catch {
+            print("❌ Failed to download \(fileName): \(error.localizedDescription)")
+            return nil
+        }
+    }
+
+    // MARK: - Debug info
+    private func checkFileManager() {
+        if let files = try? fileManager.contentsOfDirectory(at: adsCacheDir, includingPropertiesForKeys: [.fileSizeKey]) {
+            var total: UInt64 = 0
+            for file in files {
+                let size = (try? fileManager.attributesOfItem(atPath: file.path)[.size] as? UInt64) ?? 0
+                total += size ?? 0
+                let mb = Double(size ?? 0) / (1024 * 1024)
+                print("📄 \(file.lastPathComponent) — \(String(format: "%.2f MB", mb))")
+            }
+            print("📦 Total cache: \(String(format: "%.2f MB", Double(total) / (1024 * 1024)))\n")
+        }
+    }
+
+    // MARK: - Play current group (from local cache)
     private func playCurrentGroup() {
         guard currentIndex < groupedAds.count else { return }
         let group = groupedAds[currentIndex]
         currentGroup = group
         print("▶️ Playing group \(group.sequence) — \(group.ii.count) ads")
 
-        // Prepare video player (expect 1 video per group)
-        if let videoAd = group.ii.first(where: { $0.assettype.lowercased() == "video" }),
-           let videoURL = URL(string: videoAd.itemurl) {
-            activePlayer = AVPlayer(url: videoURL)
-            activePlayer?.play()
-
-            NotificationCenter.default.addObserver(
-                forName: .AVPlayerItemDidPlayToEndTime,
-                object: activePlayer?.currentItem,
-                queue: .main
-            ) { [weak self] _ in
-                self?.transitionToNextGroup()
-            }
+        // Video first (if present)
+        if let videoAd = group.ii.first(where: { $0.assettype.lowercased() == "video" }) {
+            playVideo(videoAd)
         } else {
-            // No video -> fallback timer
             startGroupTimer()
         }
 
-        // Preload images
+        // Preload images into memory
         Task {
             for ad in group.ii where ad.assettype.lowercased() == "image" {
                 await self.loadImage(for: ad)
@@ -74,19 +145,33 @@ final class AdPlayerViewModelNew: ObservableObject {
         }
     }
 
-    // MARK: - Load image async
-    private func loadImage(for ad: AdItemModel) async {
-        guard imageCache[ad.itemurl] == nil,
-              let url = URL(string: ad.itemurl) else { return }
+    private func playVideo(_ ad: AdItemModel) {
+        let localURL = localURLs[ad.itemurl] ?? URL(string: ad.itemurl)!
+        activePlayer = AVPlayer(url: localURL)
+        activePlayer?.play()
 
+        NotificationCenter.default.addObserver(
+            forName: .AVPlayerItemDidPlayToEndTime,
+            object: activePlayer?.currentItem,
+            queue: .main
+        ) { [weak self] _ in
+            self?.transitionToNextGroup()
+        }
+    }
+
+    // MARK: - Image loading (from local)
+    private func loadImage(for ad: AdItemModel) async {
+        if imageCache[ad.itemurl] != nil { return }
+
+        let localURL = localURLs[ad.itemurl] ?? URL(string: ad.itemurl)!
         do {
-            let (data, _) = try await URLSession.shared.data(from: url)
+            let data = try Data(contentsOf: localURL)
             if let image = UIImage(data: data) {
-                imageCache[ad.itemurl] = image
+                await MainActor.run { imageCache[ad.itemurl] = image }
                 print("🖼️ Cached image:", ad.itemurl)
             }
         } catch {
-            print("❌ Failed to load image:", error)
+            print("❌ Image load failed:", error)
         }
     }
 
@@ -104,12 +189,6 @@ final class AdPlayerViewModelNew: ObservableObject {
             slideOffset = -UIScreen.main.bounds.width
         }
 
-        let screenBounds = UIScreen.main.bounds
-        let screenWidth = screenBounds.width
-        let screenHeight = screenBounds.height
-
-        print("Screen size: \(screenWidth)x\(screenHeight)")
-        
         DispatchQueue.main.asyncAfter(deadline: .now() + 0.8) {
             self.currentIndex += 1
             if self.currentIndex >= self.groupedAds.count {
@@ -121,10 +200,10 @@ final class AdPlayerViewModelNew: ObservableObject {
         }
     }
 
-    // MARK: - Auto Sync (unchanged)
+    // MARK: - Auto Sync
     func startAutoSync(screenId: String) {
         syncAds(with: screenId)
-        syncTimer = Timer.scheduledTimer(withTimeInterval: 3 * 60, repeats: true) { [weak self] _ in
+        syncTimer = Timer.scheduledTimer(withTimeInterval: 10 * 60, repeats: true) { [weak self] _ in
             self?.syncAds(with: screenId)
         }
     }
@@ -137,9 +216,8 @@ final class AdPlayerViewModelNew: ObservableObject {
             DispatchQueue.main.async {
                 switch result {
                 case .success(let response):
-                    let groups = response.groupedAds
-                    self.groupedAds = groups
-                    print("✅ Synced \(groups.count) groups.")
+                    self.groupedAds = response.groupedAds
+                    print("✅ Synced \(response.groupedAds.count) groups.")
                 case .failure(let error):
                     print("❌ Sync failed:", error.localizedDescription)
                 }

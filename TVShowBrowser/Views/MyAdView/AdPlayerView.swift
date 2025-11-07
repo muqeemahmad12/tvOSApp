@@ -15,7 +15,14 @@ struct AdPlayerView: View {
 
     var body: some View {
         ZStack {
-            if let group = viewModel.currentGroup {
+            if viewModel.isPreloading {
+                VStack {
+                    ProgressView(value: viewModel.preloadProgress) {
+                        Text("Preloading assets...")
+                    }
+                    .padding()
+                }
+            } else if let group = viewModel.currentGroup {
                 GeometryReader { geo in
                     let screenWidth = geo.size.width
                     let screenHeight = geo.size.height

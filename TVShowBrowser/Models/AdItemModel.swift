@@ -78,6 +78,6 @@ extension AdItemModel {
               let height = Int(components[1]) else {
             return false
         }
-        return width > 1920 || height > 1080
+        return width > 2126 || height > 3840
     }
 }
