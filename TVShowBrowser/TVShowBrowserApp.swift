@@ -9,8 +9,6 @@ import SwiftUI
 
 @main
 struct TVShowBrowserApp: App {
-    @StateObject private var listVM = AdListViewModel()
-    
     init() {
         let fileHelper = FileManagerHelper.shared
         
@@ -30,20 +28,7 @@ struct TVShowBrowserApp: App {
         WindowGroup {
 //            ContentView()
 //            AdListView()
-            VStack {
-                        AdPlayerView(listVM: listVM)
-                    .ignoresSafeArea()
-                    .scaledToFill()
-//                            .frame(height: 400)
-//                            .cornerRadius(16)
-//                            .shadow(radius: 10)
-//                            .padding()
-//                        
-//                        Spacer()
-                    }
-                    .onAppear {
-                        listVM.fetchAds(screenId: "174", reqNum: 1)
-                    }
+            ActivationScreenView()
         }
     }
 }

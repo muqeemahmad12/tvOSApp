@@ -5,7 +5,7 @@
 //  Created by Muqeem Ahmad on 04/11/25.
 //
 
-import SwiftUI
+import Foundation
 
 final class FileManagerHelper {
     static let shared = FileManagerHelper()
@@ -50,11 +50,32 @@ final class FileManagerHelper {
     
     // MARK: - Clear Both
     func clearAppStorage() {
+        print("🧹 Clearing all app storage...")
         clearDirectory(.documentDirectory)
         clearDirectory(.cachesDirectory)
+        
+        // Also clear temp directory
+        clearTemporaryDirectory()
+        
+        print("✅ All app storage cleared.")
+        checkFileManager()
     }
     
+    // MARK: - Clear Temporary
+    private func clearTemporaryDirectory() {
+        let tmpURL = fileManager.temporaryDirectory
+        do {
+            let tmpFiles = try fileManager.contentsOfDirectory(at: tmpURL, includingPropertiesForKeys: nil)
+            for file in tmpFiles {
+                try fileManager.removeItem(at: file)
+            }
+            print("✅ Cleared temporary directory")
+        } catch {
+            print("❌ Error clearing temp: \(error.localizedDescription)")
+        }
+    }
     
+    // MARK: - Check All Folders
     func checkFileManager() {
         let fm = FileManager.default
         let paths = [
@@ -77,7 +98,6 @@ final class FileManagerHelper {
                             let fileSize = attributes[.size] as? UInt64 ?? 0
                             totalSize += fileSize
                             
-                            // Print per-file size in KB or MB
                             let sizeKB = Double(fileSize) / 1024.0
                             let sizeString = sizeKB > 1024 ? String(format: "%.2f MB", sizeKB / 1024.0)
                                                            : String(format: "%.2f KB", sizeKB)
@@ -90,11 +110,8 @@ final class FileManagerHelper {
                 }
             }
             
-            // Print total size for this folder
             let totalMB = Double(totalSize) / (1024.0 * 1024.0)
             print("📦 Total \(name) folder size: \(String(format: "%.2f MB", totalMB))\n")
         }
     }
-
-    
 }

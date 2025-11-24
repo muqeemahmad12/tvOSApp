@@ -21,7 +21,7 @@ final class APIService {
         request.httpMethod = "POST"
         request.setValue("application/json", forHTTPHeaderField: "Content-Type")
 
-        let payload: [String: Any] = ["screenid": screenId, "reqNum": 2]
+        let payload: [String: Any] = ["screenid": screenId, "reqNum": reqNum]
         request.httpBody = try? JSONSerialization.data(withJSONObject: payload, options: [])
 
         URLSession.shared.dataTask(with: request) { data, response, error in
