@@ -20,10 +20,6 @@ struct AdPlayerView: View {
                     Image("placeholder_image")
                         .resizable()
                         .aspectRatio(contentMode: .fit)
-                    
-//                    Text("Loading Informational Sparks for your clinical display")
-//                        .font(.title2)
-//                        .foregroundColor(Color(hex: "#138bcc"))   // Cyan blue
                     // TOP-CENTER 2-LINE TEXT
                     VStack {
                         Text("Loading Informational Sparks \n for your clinical display")
@@ -36,7 +32,6 @@ struct AdPlayerView: View {
                             .font(.system(size: 30))   // LARGE + BOLD
                             .multilineTextAlignment(.center)
                             .foregroundColor(Color(hex: "#505050"))   // your color code
-//                            .padding(.top, 5)
                         
                         Spacer()
                     }
@@ -63,7 +58,7 @@ struct AdPlayerView: View {
                 GeometryReader { geo in
                     let videos = group.ii.filter { $0.assettype.lowercased() == "video" }
                     let images = group.ii.filter { $0.assettype.lowercased() == "image" }
-                    
+                
                     let hasVideo = !videos.isEmpty
                     let hasImages = !images.isEmpty
                     
@@ -91,7 +86,7 @@ struct AdPlayerView: View {
                                     .frame(width: videoWidth, height: videoHeight)
                                     .clipped()
                                     .position(x: videoWidth / 2,
-                                              y: hasImages ? (videoHeight / 1.1) : screenHeight / 2)
+                                              y: hasImages ? (videoHeight / 2) : screenHeight / 2)
                                     .animation(.easeInOut(duration: 1.0), value: hasImages)
                             }
                             
@@ -100,7 +95,7 @@ struct AdPlayerView: View {
                                 if let img = viewModel.imageCache[bottomAd.itemurl] {
                                     Image(uiImage: img)
                                         .resizable()
-                                        .aspectRatio(contentMode: .fit)
+                                        .aspectRatio(contentMode: .fill)
                                         .frame(width: videoWidth, height: bottomImageHeight)
                                         .clipped()
                                         .position(x: videoWidth / 2,
@@ -113,7 +108,7 @@ struct AdPlayerView: View {
                                 if let img = viewModel.imageCache[rightAd.itemurl] {
                                     Image(uiImage: img)
                                     //                                    .resizable()
-                                        .aspectRatio(contentMode: .fit)
+                                        .aspectRatio(contentMode: .fill)
                                         .frame(width: (screenWidth - videoWidth),
                                                height: screenHeight)
                                         .clipped()

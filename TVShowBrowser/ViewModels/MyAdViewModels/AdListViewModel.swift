@@ -30,15 +30,6 @@ final class AdListViewModel: ObservableObject {
                     let groups = response.groupedAds
                     self.groupedAds = groups
                     self.ads = groups.flatMap { $0.ii }
-
-                    print("✅ API Success — Total Groups: \(groups.count)")
-                    for group in groups {
-                        print("▶️ Sequence \(group.sequence): \(group.ii.count) ads")
-                        for ad in group.ii {
-                            print("   🔹 \(ad.itemid): \(ad.assettype) — \(ad.itemurl)")
-                        }
-                    }
-
                 case .failure(let error):
                     self.errorMessage = error.localizedDescription
                     print("❌ API Failed:", error.localizedDescription)

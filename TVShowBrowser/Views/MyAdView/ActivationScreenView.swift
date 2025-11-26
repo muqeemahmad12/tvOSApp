@@ -20,17 +20,19 @@ struct ActivationScreenView: View {
             // Background
             Image("placeholder_image")
                 .resizable()
-                .aspectRatio(contentMode: .fit)
+                .scaledToFill()
+                .ignoresSafeArea()
             
 
             VStack(spacing: 40) {
 
                 // Title
                 Text("Activate your TV screen")
-                    .font(.system(size: 80, weight: .semibold))
+                    .font(.system(size: 85, weight: .semibold))
                     .foregroundColor(Color(hex: "#138bcc"))
-                    .padding(.top, 40)
+                    .padding(.top, 50)
 
+                Spacer()
                 HStack(alignment: .top, spacing: 80) {
 
                     // LEFT SIDE — QR + Activation Code
@@ -39,7 +41,7 @@ struct ActivationScreenView: View {
                         // QR Code
                         QRCodeView(text: codeString)
                             .frame(width: 450, height: 450)
-
+                        Spacer()
                         // Activation Code boxes — NOW MOVED TO LEFT
                         HStack(spacing: 20) {
                             ForEach(activationCode, id: \.self) { char in
@@ -54,7 +56,7 @@ struct ActivationScreenView: View {
                             }
                         }
                     }
-
+//                    Spacer()
                     // RIGHT — Instructions
                     VStack(alignment: .leading, spacing: 40) {
 
@@ -89,23 +91,8 @@ struct ActivationScreenView: View {
                             .foregroundColor(Color(hex: "#505050"))
                         }
                     }
+                    Spacer()
                 }
-
-
-                // Activation Code boxes
-//                HStack(spacing: 20) {
-//                    ForEach(activationCode, id: \.self) { char in
-//                        Text(char)
-//                            .font(.system(size: 60, weight: .semibold))
-//                            .foregroundColor(Color(hex: "#505050"))   // your color code
-//                            .frame(width: 100, height: 100)
-//                            .background(
-//                                RoundedRectangle(cornerRadius: 20)
-//                                    .stroke(Color.gray.opacity(0.6), lineWidth: 4)
-//                            )
-//                    }
-//                }
-//                .padding(.top, 50)
 
                 // Footer Note
                 Text("Note: This app is developed for healthcare organizations and their trusted vendor partners, this application provides centralized control of content displayed on facility TVs. For authorized use only.")
@@ -113,32 +100,19 @@ struct ActivationScreenView: View {
                     .foregroundColor(Color(hex: "#505050"))   // your color code
                     .padding(.bottom, 20)
             }
-            .padding(.horizontal, 60)
+//            .padding(.horizontal, 60)
         }
         .onAppear {
             // Auto navigate after 10 seconds
             DispatchQueue.main.asyncAfter(deadline: .now() + 10) {
-                DispatchQueue.main.asyncAfter(deadline: .now() + 10) {
-                    UIApplication.shared.setRootView(
-                        AdPlayerView(listVM: listVM)
-                            .ignoresSafeArea()
-                    )
+                UIApplication.shared.setRootView(
+                    AdPlayerView(listVM: listVM)
+                        .ignoresSafeArea()
+                )
 
-                    listVM.fetchAds(screenId: "174", reqNum: 1)
-                }
-
+                listVM.fetchAds(screenId: "174", reqNum: 1)
             }
-        }
-//        .fullScreenCover(isPresented: $navigate) {
-//            VStack {
-//                AdPlayerView(listVM: listVM)
-//            .ignoresSafeArea()
-//            .scaledToFill()
-//            }
-//            .onAppear {
-//                listVM.fetchAds(screenId: "174", reqNum: 1)
-//            }
-//        }            
+        }        
     }
 }
 

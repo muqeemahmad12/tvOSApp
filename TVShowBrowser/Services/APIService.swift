@@ -37,6 +37,14 @@ final class APIService {
 
             do {
                 let decoded = try JSONDecoder().decode(ItemSeqInfoResponse.self, from: data)
+                let groups = decoded.groupedAds
+                print("✅ API Success — Total Groups: \(groups.count)")
+                for group in groups {
+                    print("▶️ Sequence \(group.sequence): \(group.ii.count) ads")
+                    for ad in group.ii {
+                        print("   🔹 \(ad.itemid): \(ad.assettype) — \(ad.itemurl)")
+                    }
+                }
                 completion(.success(decoded))
             } catch {
                 print("❌ Decoding error: \(error)")

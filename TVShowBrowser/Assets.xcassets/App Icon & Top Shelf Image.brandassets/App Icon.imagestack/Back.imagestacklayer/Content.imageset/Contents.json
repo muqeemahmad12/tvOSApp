@@ -1,11 +1,12 @@
 {
   "images" : [
     {
-      "filename" : "app_icon-2.png",
+      "filename" : "tvOS App Icon-400x240.png",
       "idiom" : "tv",
       "scale" : "1x"
     },
     {
+      "filename" : "tvOS App Icon-800x480.png",
       "idiom" : "tv",
       "scale" : "2x"
     }
