@@ -163,7 +163,9 @@ final class AdPlayerViewModelNew: ObservableObject {
             object: activePlayer?.currentItem,
             queue: .main
         ) { [weak self] _ in
-            self?.transitionToNextGroup()
+            Task { @MainActor in
+                self?.transitionToNextItem()
+            }
         }
     }
 
@@ -198,12 +200,14 @@ final class AdPlayerViewModelNew: ObservableObject {
     private func startGroupTimer() {
         timer?.invalidate()
         timer = Timer.scheduledTimer(withTimeInterval: 20, repeats: false) { [weak self] _ in
-            self?.transitionToNextGroup()
+            Task { @MainActor in
+                self?.transitionToNextItem()
+            }
         }
     }
 
     // MARK: - Transition
-    private func transitionToNextGroup() {
+    private func transitionToNextItem() {
         withAnimation(.easeInOut(duration: 0.8)) {
             slideOffset = -UIScreen.main.bounds.width
         }
@@ -235,57 +239,66 @@ final class AdPlayerViewModelNew: ObservableObject {
     }
     
     // MARK: - Safely apply new synced playlist
+    @MainActor
     private func applyPendingPlaylistSafely() async {
-        print("📥 Applying NEW playlist safely…")
+        guard !pendingGroups.isEmpty else { return }
 
-        // STEP 1: Reset old data
-        self.localURLs.removeAll()
-        self.imageCache.removeAll()
+        print("📥 Applying NEW playlist safely with diff merging…")
 
-        // STEP 2: Copy preloaded pending URLs into localURLs
-        for group in pendingGroups {
+        let oldGroups = groupedAds
+        let newGroups = pendingGroups
+
+        // STEP 1 — Preload only new assets (based on diff)
+        await preloadNewItems(old: oldGroups, new: newGroups)
+
+        // STEP 2 — Cleanup old unused files
+        cleanupObsoleteFiles(keeping: newGroups)
+
+        // STEP 3 — Reset memory state
+        localURLs.removeAll()
+        imageCache.removeAll()
+
+        // STEP 4 — Rebuild localURLs using files on disk for new playlist
+        for group in newGroups {
             for ad in group.ii {
-                if let fileURL = adsCacheDir.appendingPathComponent(URL(string: ad.itemurl)!.lastPathComponent)
-                    .absoluteURL as URL?,
-                   fileManager.fileExists(atPath: fileURL.path)
-                {
-                    self.localURLs[ad.itemurl] = fileURL
+                let fileName = URL(string: ad.itemurl)?.lastPathComponent ?? ""
+                let path = adsCacheDir.appendingPathComponent(fileName).path
+
+                if fileManager.fileExists(atPath: path) {
+                    localURLs[ad.itemurl] = adsCacheDir.appendingPathComponent(fileName)
                 }
             }
         }
 
-        // STEP 3: Replace playlist
-        self.groupedAds = self.pendingGroups
-        self.pendingGroups.removeAll()
-        self.currentIndex = 0
-        self.lastAppliedSync = Date()
+        // STEP 5 — Apply playlist
+        groupedAds = newGroups
+        pendingGroups.removeAll()
+        currentIndex = 0
+        lastAppliedSync = Date()
 
-        // STEP 4: Decode ALL images fully before playback
-        print("🖼️ Rebuilding imageCache from disk…")
+        // STEP 6 — Decode ALL images into memory
+        print("🖼️ Rebuilding in-memory image cache…")
 
         for (key, url) in localURLs {
-            if ["jpg", "jpeg", "png"].contains(url.pathExtension.lowercased()) {
-                if let data = try? Data(contentsOf: url),
-                   let img = UIImage(data: data) {
-                    await MainActor.run {
-                        self.imageCache[key] = img
-                    }
-                }
+            let ext = url.pathExtension.lowercased()
+            if ["jpg", "jpeg", "png"].contains(ext),
+               let data = try? Data(contentsOf: url),
+               let img = UIImage(data: data) {
+                imageCache[key] = img
             }
         }
 
-        print("🎉 New playlist ready — starting playback\n")
+        print("🎉 NEW playlist ready — begin playback")
 
-        await MainActor.run {
-            self.playCurrentGroup()
-        }
+        playCurrentGroup()
     }
 
     // MARK: - Auto Sync
     func startAutoSync(screenId: String) {
-//        syncAds(with: screenId)
         syncTimer = Timer.scheduledTimer(withTimeInterval: repeatInTime, repeats: true) { [weak self] _ in
-            self?.syncAds(with: screenId)
+            Task { @MainActor in
+                self?.syncAds(with: screenId)
+            }
         }
     }
 
@@ -304,7 +317,8 @@ final class AdPlayerViewModelNew: ObservableObject {
 
                     // ⭐ PRELOAD NEW PLAYLIST IMMEDIATELY ⭐
                     Task {
-                        await self.preloadPendingGroups()
+                        await self.applyPendingPlaylistSafely()
+//                        await self.preloadPendingGroups()
                     }
                     
                 case .failure(let error):
@@ -314,19 +328,61 @@ final class AdPlayerViewModelNew: ObservableObject {
         }
     }
 
-    private func preloadPendingGroups() async {
-        guard !pendingGroups.isEmpty else { return }
+//    private func preloadPendingGroups() async {
+//        guard !pendingGroups.isEmpty else { return }
+//
+//        print("⏳ Preloading NEW playlist assets…")
+//
+//        let allPendingAds = pendingGroups.flatMap { $0.ii }
+//        for ad in allPendingAds {
+//            if let url = await downloadAsset(ad.itemurl) {
+//                localURLs[ad.itemurl] = url
+//            }
+//        }
+//
+//        print("✅ Finished preloading NEW playlist")
+//    }
 
-        print("⏳ Preloading NEW playlist assets…")
+    /// Returns only NEW ads that do NOT exist in old playlist.
+    private func computeDiff(old oldGroups: [AdSequenceGroup],
+                             new newGroups: [AdSequenceGroup]) -> [AdItemModel] {
 
-        let allPendingAds = pendingGroups.flatMap { $0.ii }
-        for ad in allPendingAds {
+        let oldAds = Set(oldGroups.flatMap { $0.ii.map { $0.itemurl } })
+        let newAds = newGroups.flatMap { $0.ii }
+
+        return newAds.filter { !oldAds.contains($0.itemurl) }
+    }
+
+    private func cleanupObsoleteFiles(keeping groups: [AdSequenceGroup]) {
+        let keepFiles = Set(groups.flatMap { group in
+            group.ii.compactMap { URL(string: $0.itemurl)?.lastPathComponent.lowercased() }
+        })
+
+        if let files = try? fileManager.contentsOfDirectory(atPath: adsCacheDir.path) {
+            for file in files {
+                if !keepFiles.contains(file.lowercased()) {
+                    let url = adsCacheDir.appendingPathComponent(file)
+                    try? fileManager.removeItem(at: url)
+                    print("🗑️ Removed obsolete file:", file)
+                }
+            }
+        }
+    }
+
+    private func preloadNewItems(old oldGroups: [AdSequenceGroup],
+                                 new newGroups: [AdSequenceGroup]) async {
+        
+        let newItems = computeDiff(old: oldGroups, new: newGroups)
+
+        print("🆕 Found \(newItems.count) NEW items to download")
+
+        for ad in newItems {
             if let url = await downloadAsset(ad.itemurl) {
                 localURLs[ad.itemurl] = url
             }
         }
 
-        print("✅ Finished preloading NEW playlist")
+        print("✅ Preloading new items completed")
     }
 
     // MARK: - Stop
