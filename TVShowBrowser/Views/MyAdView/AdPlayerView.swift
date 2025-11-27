@@ -119,8 +119,8 @@ struct AdPlayerView: View {
                         }
                     }
                 }
-                .animation(.easeInOut(duration: 0.8), value: viewModel.slideOffset)
-                .offset(x: viewModel.slideOffset)
+//                .animation(.easeInOut(duration: 0.8), value: viewModel.slideOffset)
+//                .offset(x: viewModel.slideOffset)
             } else {
                 ZStack {
                     Image("placeholder_image")

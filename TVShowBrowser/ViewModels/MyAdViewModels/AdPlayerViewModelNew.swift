@@ -154,10 +154,25 @@ final class AdPlayerViewModelNew: ObservableObject {
     }
 
     private func playVideo(_ ad: AdItemModel) {
-        let localURL = localURLs[ad.itemurl] ?? URL(string: ad.itemurl)!
+        guard let localURL = localURLs[ad.itemurl] ?? URL(string: ad.itemurl) else {
+            print("Invalid URL:", ad.itemurl)
+            transitionToNextItem()
+            return
+        }
+
+        Task {
+            let isValid = await isVideoPlayable(url: localURL)
+            print("Playable:", isValid)
+            
+            guard isValid else {
+                transitionToNextItem()
+                return
+            }
+        }
+        
         activePlayer = AVPlayer(url: localURL)
         activePlayer?.play()
-
+        
         NotificationCenter.default.addObserver(
             forName: .AVPlayerItemDidPlayToEndTime,
             object: activePlayer?.currentItem,
@@ -166,6 +181,19 @@ final class AdPlayerViewModelNew: ObservableObject {
             Task { @MainActor in
                 self?.transitionToNextItem()
             }
+        }
+    }
+    
+    func isVideoPlayable(url: URL) async -> Bool {
+        let asset = AVURLAsset(url: url)
+
+        do {
+            // Load "isPlayable" property asynchronously
+            let playable = try await asset.load(.isPlayable)
+            return playable
+        } catch {
+            print("🛑 Asset load failed:", error)
+            return false
         }
     }
 

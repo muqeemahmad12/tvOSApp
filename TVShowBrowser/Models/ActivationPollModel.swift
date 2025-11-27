@@ -18,6 +18,6 @@ struct ActivationPollResponse: Codable {
 struct ActivationPollData: Codable {
     let status: String
     let secureKey: String?
-    let logoUrl: String
+    let logoUrl: String?
     let tickerMessage: String?
 }

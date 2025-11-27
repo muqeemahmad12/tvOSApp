@@ -70,7 +70,7 @@ final class DeviceActivationAPI {
                 return result // final result
             }
             
-            try? await Task.sleep(nanoseconds: 5_000_000_000) // wait 5 seconds
+            try? await Task.sleep(nanoseconds: 15_000_000_000) // wait 5 seconds
         }
     }
     
@@ -93,14 +93,66 @@ final class DeviceActivationAPI {
             throw URLError(.badServerResponse)
         }
 
-        let decoded = try JSONDecoder().decode(ActivationPollResponse.self, from: data)
+        let pollData = try decodeResponse(data: data)
+        return pollData
 
-        guard decoded.code == 200, let pollData = decoded.data else {
-            throw NSError(domain: "APIError", code: decoded.code, userInfo: [
-                NSLocalizedDescriptionKey: decoded.message
-            ])
+//        let decoded = try JSONDecoder().decode(ActivationPollResponse.self, from: data)
+//
+//        guard decoded.code == 200, let pollData = decoded.data else {
+//            throw NSError(domain: "APIError", code: decoded.code, userInfo: [
+//                NSLocalizedDescriptionKey: decoded.message
+//            ])
+//        }
+//
+//        return pollData
+    }
+    
+    private func decodeResponse(data: Data) throws -> ActivationPollData {
+        do {
+            let decoded = try JSONDecoder().decode(ActivationPollResponse.self, from: data)
+
+            guard decoded.code == 200, let pollData = decoded.data else {
+                throw NSError(
+                    domain: "APIError",
+                    code: decoded.code,
+                    userInfo: [NSLocalizedDescriptionKey: decoded.message]
+                )
+            }
+
+            return pollData
+
+        } catch let DecodingError.keyNotFound(key, context) {
+            logDecodeError("Key not found: \(key.stringValue)", context: context, data: data)
+            throw DecodingError.keyNotFound(key, context)
+
+        } catch let DecodingError.typeMismatch(type, context) {
+            logDecodeError("Type mismatch: \(type)", context: context, data: data)
+            throw DecodingError.typeMismatch(type, context)
+
+        } catch let DecodingError.valueNotFound(type, context) {
+            logDecodeError("Value not found: \(type)", context: context, data: data)
+            throw DecodingError.valueNotFound(type, context)
+
+        } catch let DecodingError.dataCorrupted(context) {
+            logDecodeError("Data corrupted: \(context.debugDescription)", context: context, data: data)
+            throw DecodingError.dataCorrupted(context)
+
+        } catch let decodeErr {
+            print("❌ Unknown decode error:", decodeErr)
+            printJSON(data)
+            throw decodeErr
         }
 
-        return pollData
     }
+    
+    private func logDecodeError(_ message: String, context: DecodingError.Context, data: Data) {
+        print("❌ Decode Error:", message)
+        print("Coding Path:", context.codingPath.map { $0.stringValue }.joined(separator: " ➜ "))
+        printJSON(data)
+    }
+
+    private func printJSON(_ data: Data) {
+        print("RAW JSON:", String(data: data, encoding: .utf8) ?? "N/A")
+    }
+
 }
