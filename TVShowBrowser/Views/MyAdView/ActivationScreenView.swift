@@ -10,7 +10,8 @@ import SwiftUI
 struct ActivationScreenView: View {
     @State private var navigate = false
     @StateObject private var listVM = AdListViewModel()
-    
+    @StateObject private var vm = ActivationViewModel()
+    	
     // Example activation code
     let activationCode = ["D", "O", "C", "3", "R", "E"]
     var codeString: String { activationCode.joined() }
@@ -23,7 +24,16 @@ struct ActivationScreenView: View {
                 .scaledToFill()
                 .ignoresSafeArea()
             
-
+            if !vm.deviceCode.isEmpty {
+                            VStack {
+                                Text("Device Code: \(vm.deviceCode)")
+                                Text("User Code: \(vm.userCode)")
+                                Text("Status: \(vm.activationStatus)")
+                                Text("Expires At: \(vm.expiresAt)")
+                            }
+                            .padding()
+                        }
+            
             VStack(spacing: 40) {
 
                 // Title
@@ -103,6 +113,7 @@ struct ActivationScreenView: View {
 //            .padding(.horizontal, 60)
         }
         .onAppear {
+//            vm.activateDevice()
             // Auto navigate after 10 seconds
             DispatchQueue.main.asyncAfter(deadline: .now() + 10) {
                 UIApplication.shared.setRootView(

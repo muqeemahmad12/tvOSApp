@@ -35,7 +35,7 @@ final class AdPlayerViewModelNew: ObservableObject {
     // MARK: - File Manager helpers
     private var fileManager: FileManager { .default }
     private var adsCacheDir: URL {
-        let dir = fileManager.urls(for: .documentDirectory, in: .userDomainMask).first!.appendingPathComponent("AdsCache")
+        let dir = fileManager.urls(for: .cachesDirectory, in: .userDomainMask).first!.appendingPathComponent("AdsCache")
         if !fileManager.fileExists(atPath: dir.path) {
             try? fileManager.createDirectory(at: dir, withIntermediateDirectories: true)
         }
@@ -87,7 +87,6 @@ final class AdPlayerViewModelNew: ObservableObject {
         await MainActor.run {
             isPreloading = false
             print("✅ All assets downloaded to \(adsCacheDir.lastPathComponent)")
-            checkFileManager()
         }
     }
 
@@ -124,36 +123,6 @@ final class AdPlayerViewModelNew: ObservableObject {
         } catch {
             print("❌ Failed to download \(fileName): \(error.localizedDescription)")
             return nil
-        }
-    }
-    
-    private func preloadPendingGroups() async {
-        guard !pendingGroups.isEmpty else { return }
-
-        print("⏳ Preloading NEW playlist assets…")
-
-        let allPendingAds = pendingGroups.flatMap { $0.ii }
-        for ad in allPendingAds {
-            if let url = await downloadAsset(ad.itemurl) {
-                localURLs[ad.itemurl] = url
-            }
-        }
-
-        print("✅ Finished preloading NEW playlist")
-    }
-
-    
-    // MARK: - Debug info
-    private func checkFileManager() {
-        if let files = try? fileManager.contentsOfDirectory(at: adsCacheDir, includingPropertiesForKeys: [.fileSizeKey]) {
-            var total: UInt64 = 0
-            for file in files {
-                let size = (try? fileManager.attributesOfItem(atPath: file.path)[.size] as? UInt64) ?? 0
-                total += size ?? 0
-                let mb = Double(size ?? 0) / (1024 * 1024)
-                print("📄 \(file.lastPathComponent) — \(String(format: "%.2f MB", mb))")
-            }
-            print("📦 Total cache: \(String(format: "%.2f MB", Double(total) / (1024 * 1024)))\n")
         }
     }
 
@@ -204,7 +173,18 @@ final class AdPlayerViewModelNew: ObservableObject {
 
         let localURL = localURLs[ad.itemurl] ?? URL(string: ad.itemurl)!
         do {
-            let data = try Data(contentsOf: localURL)
+            // Load from disk or network OFF the main thread
+            let data = try await withCheckedThrowingContinuation { continuation in
+                DispatchQueue.global(qos: .userInitiated).async {
+                    do {
+                        let data = try Data(contentsOf: localURL)
+                        continuation.resume(returning: data)
+                    } catch {
+                        continuation.resume(throwing: error)
+                    }
+                }
+            }
+            
             if let image = UIImage(data: data) {
                 await MainActor.run { imageCache[ad.itemurl] = image }
                 print("🖼️ Cached image:", ad.itemurl)
@@ -334,6 +314,20 @@ final class AdPlayerViewModelNew: ObservableObject {
         }
     }
 
+    private func preloadPendingGroups() async {
+        guard !pendingGroups.isEmpty else { return }
+
+        print("⏳ Preloading NEW playlist assets…")
+
+        let allPendingAds = pendingGroups.flatMap { $0.ii }
+        for ad in allPendingAds {
+            if let url = await downloadAsset(ad.itemurl) {
+                localURLs[ad.itemurl] = url
+            }
+        }
+
+        print("✅ Finished preloading NEW playlist")
+    }
 
     // MARK: - Stop
     func stop() {

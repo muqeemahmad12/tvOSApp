@@ -7,7 +7,7 @@
 	objects = {
 
 /* Begin PBXBuildFile section */
-		54E42DAD2E9F83BB00E0F7D4 /* Lottie in Frameworks */ = {isa = PBXBuildFile; productRef = 54E42DAC2E9F83BB00E0F7D4 /* Lottie */; };
+		54FD3B842ED6EB9C00EFF630 /* Lottie in Frameworks */ = {isa = PBXBuildFile; productRef = 54FD3B832ED6EB9C00EFF630 /* Lottie */; };
 		95EBFC9EBBD2F138D58D2877 /* Pods_TVShowBrowser.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = CCA9E25167A26A8961454408 /* Pods_TVShowBrowser.framework */; };
 /* End PBXBuildFile section */
 
@@ -32,8 +32,8 @@
 			isa = PBXFrameworksBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
-				54E42DAD2E9F83BB00E0F7D4 /* Lottie in Frameworks */,
 				95EBFC9EBBD2F138D58D2877 /* Pods_TVShowBrowser.framework in Frameworks */,
+				54FD3B842ED6EB9C00EFF630 /* Lottie in Frameworks */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -98,7 +98,7 @@
 			);
 			name = TVShowBrowser;
 			packageProductDependencies = (
-				54E42DAC2E9F83BB00E0F7D4 /* Lottie */,
+				54FD3B832ED6EB9C00EFF630 /* Lottie */,
 			);
 			productName = TVShowBrowser;
 			productReference = 54CE24682E95221600306053 /* TVShowBrowser.app */;
@@ -129,7 +129,7 @@
 			mainGroup = 54CE245F2E95221600306053;
 			minimizedProjectReferenceProxies = 1;
 			packageReferences = (
-				54E42DAB2E9F83BB00E0F7D4 /* XCRemoteSwiftPackageReference "lottie-spm" */,
+				54FD3B822ED6EB9C00EFF630 /* XCRemoteSwiftPackageReference "lottie-spm" */,
 			);
 			preferredProjectObjectVersion = 77;
 			productRefGroup = 54CE24692E95221600306053 /* Products */;
@@ -415,7 +415,7 @@
 /* End XCConfigurationList section */
 
 /* Begin XCRemoteSwiftPackageReference section */
-		54E42DAB2E9F83BB00E0F7D4 /* XCRemoteSwiftPackageReference "lottie-spm" */ = {
+		54FD3B822ED6EB9C00EFF630 /* XCRemoteSwiftPackageReference "lottie-spm" */ = {
 			isa = XCRemoteSwiftPackageReference;
 			repositoryURL = "https://github.com/airbnb/lottie-spm";
 			requirement = {
@@ -426,9 +426,9 @@
 /* End XCRemoteSwiftPackageReference section */
 
 /* Begin XCSwiftPackageProductDependency section */
-		54E42DAC2E9F83BB00E0F7D4 /* Lottie */ = {
+		54FD3B832ED6EB9C00EFF630 /* Lottie */ = {
 			isa = XCSwiftPackageProductDependency;
-			package = 54E42DAB2E9F83BB00E0F7D4 /* XCRemoteSwiftPackageReference "lottie-spm" */;
+			package = 54FD3B822ED6EB9C00EFF630 /* XCRemoteSwiftPackageReference "lottie-spm" */;
 			productName = Lottie;
 		};
 /* End XCSwiftPackageProductDependency section */

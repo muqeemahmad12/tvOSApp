@@ -3,4 +3,144 @@
    uuid = "31501C58-834F-4D82-8BDD-3E375216014E"
    type = "0"
    version = "2.0">
+   <Breakpoints>
+      <BreakpointProxy
+         BreakpointExtensionID = "Xcode.Breakpoint.FileBreakpoint">
+         <BreakpointContent
+            uuid = "A294E3DC-1108-408A-B8C6-92A8ACC26765"
+            shouldBeEnabled = "Yes"
+            ignoreCount = "0"
+            continueAfterRunningActions = "No"
+            filePath = "TVShowBrowser/Services/DeviceActivationAPI.swift"
+            startingColumnNumber = "9223372036854775807"
+            endingColumnNumber = "9223372036854775807"
+            startingLineNumber = "25"
+            endingLineNumber = "25"
+            landmarkName = "activateDeviceFullFlow(payload:)"
+            landmarkType = "7">
+         </BreakpointContent>
+      </BreakpointProxy>
+      <BreakpointProxy
+         BreakpointExtensionID = "Xcode.Breakpoint.FileBreakpoint">
+         <BreakpointContent
+            uuid = "61BEED62-6665-4DC4-873D-5A94DE42AE94"
+            shouldBeEnabled = "Yes"
+            ignoreCount = "0"
+            continueAfterRunningActions = "No"
+            filePath = "TVShowBrowser/ViewModels/MyAdViewModels/ActivationViewModel.swift"
+            startingColumnNumber = "9223372036854775807"
+            endingColumnNumber = "9223372036854775807"
+            startingLineNumber = "46"
+            endingLineNumber = "46"
+            landmarkName = "activateDevice()"
+            landmarkType = "7">
+         </BreakpointContent>
+      </BreakpointProxy>
+      <BreakpointProxy
+         BreakpointExtensionID = "Xcode.Breakpoint.FileBreakpoint">
+         <BreakpointContent
+            uuid = "F4A998A4-0F30-4A20-AFF7-455791FEC01B"
+            shouldBeEnabled = "Yes"
+            ignoreCount = "0"
+            continueAfterRunningActions = "No"
+            filePath = "TVShowBrowser/Services/DeviceActivationAPI.swift"
+            startingColumnNumber = "9223372036854775807"
+            endingColumnNumber = "9223372036854775807"
+            startingLineNumber = "98"
+            endingLineNumber = "98"
+            landmarkName = "pollActivation(deviceCode:)"
+            landmarkType = "7">
+         </BreakpointContent>
+      </BreakpointProxy>
+      <BreakpointProxy
+         BreakpointExtensionID = "Xcode.Breakpoint.FileBreakpoint">
+         <BreakpointContent
+            uuid = "139CC6EE-4DC4-4FB4-BB09-E818061CEBC6"
+            shouldBeEnabled = "Yes"
+            ignoreCount = "0"
+            continueAfterRunningActions = "No"
+            filePath = "TVShowBrowser/Services/DeviceActivationAPI.swift"
+            startingColumnNumber = "9223372036854775807"
+            endingColumnNumber = "9223372036854775807"
+            startingLineNumber = "73"
+            endingLineNumber = "73"
+            landmarkName = "pollUntilActivated(deviceCode:)"
+            landmarkType = "7">
+            <Locations>
+               <Location
+                  uuid = "139CC6EE-4DC4-4FB4-BB09-E818061CEBC6 - 7aa2ef7c010be1a2"
+                  shouldBeEnabled = "Yes"
+                  ignoreCount = "0"
+                  continueAfterRunningActions = "No"
+                  symbolName = "(2) suspend resume partial function for TVShowBrowser.DeviceActivationAPI.pollUntilActivated(deviceCode: Swift.String) async throws -&gt; TVShowBrowser.ActivationPollData"
+                  moduleName = "TVShowBrowser.debug.dylib"
+                  usesParentBreakpointCondition = "Yes"
+                  urlString = "file:///Users/muqeem.ahmad/Documents/Projects/TVShowBrowser/TVShowBrowser/Services/DeviceActivationAPI.swift"
+                  startingColumnNumber = "9223372036854775807"
+                  endingColumnNumber = "9223372036854775807"
+                  startingLineNumber = "73"
+                  endingLineNumber = "73">
+               </Location>
+               <Location
+                  uuid = "139CC6EE-4DC4-4FB4-BB09-E818061CEBC6 - 45c96401f7c8dac7"
+                  shouldBeEnabled = "Yes"
+                  ignoreCount = "0"
+                  continueAfterRunningActions = "No"
+                  symbolName = "(3) await resume partial function for TVShowBrowser.DeviceActivationAPI.pollUntilActivated(deviceCode: Swift.String) async throws -&gt; TVShowBrowser.ActivationPollData"
+                  moduleName = "TVShowBrowser.debug.dylib"
+                  usesParentBreakpointCondition = "Yes"
+                  urlString = "file:///Users/muqeem.ahmad/Documents/Projects/TVShowBrowser/TVShowBrowser/Services/DeviceActivationAPI.swift"
+                  startingColumnNumber = "9223372036854775807"
+                  endingColumnNumber = "9223372036854775807"
+                  startingLineNumber = "73"
+                  endingLineNumber = "73">
+               </Location>
+               <Location
+                  uuid = "139CC6EE-4DC4-4FB4-BB09-E818061CEBC6 - 2d9be2ac94972ca0"
+                  shouldBeEnabled = "Yes"
+                  ignoreCount = "0"
+                  continueAfterRunningActions = "No"
+                  symbolName = "(4) suspend resume partial function for TVShowBrowser.DeviceActivationAPI.pollUntilActivated(deviceCode: Swift.String) async throws -&gt; TVShowBrowser.ActivationPollData"
+                  moduleName = "TVShowBrowser.debug.dylib"
+                  usesParentBreakpointCondition = "Yes"
+                  urlString = "file:///Users/muqeem.ahmad/Documents/Projects/TVShowBrowser/TVShowBrowser/Services/DeviceActivationAPI.swift"
+                  startingColumnNumber = "9223372036854775807"
+                  endingColumnNumber = "9223372036854775807"
+                  startingLineNumber = "73"
+                  endingLineNumber = "73">
+               </Location>
+               <Location
+                  uuid = "139CC6EE-4DC4-4FB4-BB09-E818061CEBC6 - f7f71b836dd4ca21"
+                  shouldBeEnabled = "Yes"
+                  ignoreCount = "0"
+                  continueAfterRunningActions = "No"
+                  symbolName = "(5) suspend resume partial function for TVShowBrowser.DeviceActivationAPI.pollUntilActivated(deviceCode: Swift.String) async throws -&gt; TVShowBrowser.ActivationPollData"
+                  moduleName = "TVShowBrowser.debug.dylib"
+                  usesParentBreakpointCondition = "Yes"
+                  urlString = "file:///Users/muqeem.ahmad/Documents/Projects/TVShowBrowser/TVShowBrowser/Services/DeviceActivationAPI.swift"
+                  startingColumnNumber = "9223372036854775807"
+                  endingColumnNumber = "9223372036854775807"
+                  startingLineNumber = "73"
+                  endingLineNumber = "73">
+               </Location>
+            </Locations>
+         </BreakpointContent>
+      </BreakpointProxy>
+      <BreakpointProxy
+         BreakpointExtensionID = "Xcode.Breakpoint.FileBreakpoint">
+         <BreakpointContent
+            uuid = "1BB9E40A-550D-47F1-A79D-F7F0EC8549FE"
+            shouldBeEnabled = "Yes"
+            ignoreCount = "0"
+            continueAfterRunningActions = "No"
+            filePath = "TVShowBrowser/Services/DeviceActivationAPI.swift"
+            startingColumnNumber = "9223372036854775807"
+            endingColumnNumber = "9223372036854775807"
+            startingLineNumber = "69"
+            endingLineNumber = "69"
+            landmarkName = "pollUntilActivated(deviceCode:)"
+            landmarkType = "7">
+         </BreakpointContent>
+      </BreakpointProxy>
+   </Breakpoints>
 </Bucket>
