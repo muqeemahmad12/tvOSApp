@@ -7,7 +7,6 @@
 	objects = {
 
 /* Begin PBXBuildFile section */
-		54FD3B842ED6EB9C00EFF630 /* Lottie in Frameworks */ = {isa = PBXBuildFile; productRef = 54FD3B832ED6EB9C00EFF630 /* Lottie */; };
 		95EBFC9EBBD2F138D58D2877 /* Pods_TVShowBrowser.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = CCA9E25167A26A8961454408 /* Pods_TVShowBrowser.framework */; };
 /* End PBXBuildFile section */
 
@@ -33,7 +32,6 @@
 			buildActionMask = 2147483647;
 			files = (
 				95EBFC9EBBD2F138D58D2877 /* Pods_TVShowBrowser.framework in Frameworks */,
-				54FD3B842ED6EB9C00EFF630 /* Lottie in Frameworks */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -98,7 +96,6 @@
 			);
 			name = TVShowBrowser;
 			packageProductDependencies = (
-				54FD3B832ED6EB9C00EFF630 /* Lottie */,
 			);
 			productName = TVShowBrowser;
 			productReference = 54CE24682E95221600306053 /* TVShowBrowser.app */;
@@ -129,7 +126,6 @@
 			mainGroup = 54CE245F2E95221600306053;
 			minimizedProjectReferenceProxies = 1;
 			packageReferences = (
-				54FD3B822ED6EB9C00EFF630 /* XCRemoteSwiftPackageReference "lottie-spm" */,
 			);
 			preferredProjectObjectVersion = 77;
 			productRefGroup = 54CE24692E95221600306053 /* Products */;
@@ -413,25 +409,6 @@
 			defaultConfigurationName = Release;
 		};
 /* End XCConfigurationList section */
-
-/* Begin XCRemoteSwiftPackageReference section */
-		54FD3B822ED6EB9C00EFF630 /* XCRemoteSwiftPackageReference "lottie-spm" */ = {
-			isa = XCRemoteSwiftPackageReference;
-			repositoryURL = "https://github.com/airbnb/lottie-spm";
-			requirement = {
-				kind = upToNextMajorVersion;
-				minimumVersion = 4.5.2;
-			};
-		};
-/* End XCRemoteSwiftPackageReference section */
-
-/* Begin XCSwiftPackageProductDependency section */
-		54FD3B832ED6EB9C00EFF630 /* Lottie */ = {
-			isa = XCSwiftPackageProductDependency;
-			package = 54FD3B822ED6EB9C00EFF630 /* XCRemoteSwiftPackageReference "lottie-spm" */;
-			productName = Lottie;
-		};
-/* End XCSwiftPackageProductDependency section */
 	};
 	rootObject = 54CE24602E95221600306053 /* Project object */;
 }
