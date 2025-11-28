@@ -6,15 +6,10 @@
 	objectVersion = 77;
 	objects = {
 
-/* Begin PBXBuildFile section */
-		95EBFC9EBBD2F138D58D2877 /* Pods_TVShowBrowser.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = CCA9E25167A26A8961454408 /* Pods_TVShowBrowser.framework */; };
-/* End PBXBuildFile section */
-
 /* Begin PBXFileReference section */
 		11E7CCCCF838D4985DD6FF21 /* Pods-TVShowBrowser.release.xcconfig */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = text.xcconfig; name = "Pods-TVShowBrowser.release.xcconfig"; path = "Target Support Files/Pods-TVShowBrowser/Pods-TVShowBrowser.release.xcconfig"; sourceTree = "<group>"; };
 		54CE24682E95221600306053 /* TVShowBrowser.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = TVShowBrowser.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		54E433752EA8E68700E0F7D4 /* GoogleInteractiveMediaAds.xcframework */ = {isa = PBXFileReference; expectedSignature = "AppleDeveloperProgram:EQHXZ8M8AV:Google LLC"; lastKnownFileType = wrapper.xcframework; name = GoogleInteractiveMediaAds.xcframework; path = "Pods/GoogleAds-IMA-tvOS-SDK/GoogleInteractiveMediaAds.xcframework"; sourceTree = "<group>"; };
-		B72BB74F6B95A92BD8D6F4AC /* Pods-TVShowBrowser.debug.xcconfig */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = text.xcconfig; name = "Pods-TVShowBrowser.debug.xcconfig"; path = "Target Support Files/Pods-TVShowBrowser/Pods-TVShowBrowser.debug.xcconfig"; sourceTree = "<group>"; };
 		CCA9E25167A26A8961454408 /* Pods_TVShowBrowser.framework */ = {isa = PBXFileReference; explicitFileType = wrapper.framework; includeInIndex = 0; path = Pods_TVShowBrowser.framework; sourceTree = BUILT_PRODUCTS_DIR; };
 /* End PBXFileReference section */
 
@@ -31,22 +26,12 @@
 			isa = PBXFrameworksBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
-				95EBFC9EBBD2F138D58D2877 /* Pods_TVShowBrowser.framework in Frameworks */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
 /* End PBXFrameworksBuildPhase section */
 
 /* Begin PBXGroup section */
-		3E50E671B4B0C102FF9655E7 /* Pods */ = {
-			isa = PBXGroup;
-			children = (
-				B72BB74F6B95A92BD8D6F4AC /* Pods-TVShowBrowser.debug.xcconfig */,
-				11E7CCCCF838D4985DD6FF21 /* Pods-TVShowBrowser.release.xcconfig */,
-			);
-			path = Pods;
-			sourceTree = "<group>";
-		};
 		54CE245F2E95221600306053 = {
 			isa = PBXGroup;
 			children = (
@@ -81,11 +66,9 @@
 			isa = PBXNativeTarget;
 			buildConfigurationList = 54CE24762E95221700306053 /* Build configuration list for PBXNativeTarget "TVShowBrowser" */;
 			buildPhases = (
-				748B0851266184BC6817A199 /* [CP] Check Pods Manifest.lock */,
 				54CE24642E95221600306053 /* Sources */,
 				54CE24652E95221600306053 /* Frameworks */,
 				54CE24662E95221600306053 /* Resources */,
-				5A5A3938D6386AF983B272B7 /* [CP] Embed Pods Frameworks */,
 			);
 			buildRules = (
 			);
@@ -146,48 +129,6 @@
 			runOnlyForDeploymentPostprocessing = 0;
 		};
 /* End PBXResourcesBuildPhase section */
-
-/* Begin PBXShellScriptBuildPhase section */
-		5A5A3938D6386AF983B272B7 /* [CP] Embed Pods Frameworks */ = {
-			isa = PBXShellScriptBuildPhase;
-			buildActionMask = 2147483647;
-			files = (
-			);
-			inputFileListPaths = (
-				"${PODS_ROOT}/Target Support Files/Pods-TVShowBrowser/Pods-TVShowBrowser-frameworks-${CONFIGURATION}-input-files.xcfilelist",
-			);
-			name = "[CP] Embed Pods Frameworks";
-			outputFileListPaths = (
-				"${PODS_ROOT}/Target Support Files/Pods-TVShowBrowser/Pods-TVShowBrowser-frameworks-${CONFIGURATION}-output-files.xcfilelist",
-			);
-			runOnlyForDeploymentPostprocessing = 0;
-			shellPath = /bin/sh;
-			shellScript = "\"${PODS_ROOT}/Target Support Files/Pods-TVShowBrowser/Pods-TVShowBrowser-frameworks.sh\"\n";
-			showEnvVarsInLog = 0;
-		};
-		748B0851266184BC6817A199 /* [CP] Check Pods Manifest.lock */ = {
-			isa = PBXShellScriptBuildPhase;
-			buildActionMask = 2147483647;
-			files = (
-			);
-			inputFileListPaths = (
-			);
-			inputPaths = (
-				"${PODS_PODFILE_DIR_PATH}/Podfile.lock",
-				"${PODS_ROOT}/Manifest.lock",
-			);
-			name = "[CP] Check Pods Manifest.lock";
-			outputFileListPaths = (
-			);
-			outputPaths = (
-				"$(DERIVED_FILE_DIR)/Pods-TVShowBrowser-checkManifestLockResult.txt",
-			);
-			runOnlyForDeploymentPostprocessing = 0;
-			shellPath = /bin/sh;
-			shellScript = "diff \"${PODS_PODFILE_DIR_PATH}/Podfile.lock\" \"${PODS_ROOT}/Manifest.lock\" > /dev/null\nif [ $? != 0 ] ; then\n    # print error to STDERR\n    echo \"error: The sandbox is not in sync with the Podfile.lock. Run 'pod install' or update your CocoaPods installation.\" >&2\n    exit 1\nfi\n# This output is used by Xcode 'outputs' to avoid re-running this script phase.\necho \"SUCCESS\" > \"${SCRIPT_OUTPUT_FILE_0}\"\n";
-			showEnvVarsInLog = 0;
-		};
-/* End PBXShellScriptBuildPhase section */
 
 /* Begin PBXSourcesBuildPhase section */
 		54CE24642E95221600306053 /* Sources */ = {
@@ -321,7 +262,6 @@
 		};
 		54CE24772E95221700306053 /* Debug */ = {
 			isa = XCBuildConfiguration;
-			baseConfigurationReference = B72BB74F6B95A92BD8D6F4AC /* Pods-TVShowBrowser.debug.xcconfig */;
 			buildSettings = {
 				ASSETCATALOG_COMPILER_APPICON_NAME = "App Icon & Top Shelf Image";
 				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
@@ -355,7 +295,6 @@
 		};
 		54CE24782E95221700306053 /* Release */ = {
 			isa = XCBuildConfiguration;
-			baseConfigurationReference = 11E7CCCCF838D4985DD6FF21 /* Pods-TVShowBrowser.release.xcconfig */;
 			buildSettings = {
 				ASSETCATALOG_COMPILER_APPICON_NAME = "App Icon & Top Shelf Image";
 				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;

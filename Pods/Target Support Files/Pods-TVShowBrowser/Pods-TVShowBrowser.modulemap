@@ -1,6 +1,0 @@
-framework module Pods_TVShowBrowser {
-  umbrella header "Pods-TVShowBrowser-umbrella.h"
-
-  export *
-  module * { export * }
-}
