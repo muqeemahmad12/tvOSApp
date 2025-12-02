@@ -28,7 +28,7 @@ final class AdPlayerViewModelNew: ObservableObject {
     private var syncTimer: Timer?
     private var reqNum = 1
     private var screenId = "174"
-    private var repeatInTime: Double = 3 * 60
+    private var repeatInTime: Double = 5 * 60
     private var lastAppliedSync: Date = .distantPast
 
 
@@ -49,9 +49,10 @@ final class AdPlayerViewModelNew: ObservableObject {
             print("⚠️ No groups to play.")
             return
         }
-        groupedAds = groups
+//        groupedAds = groups
         currentIndex = 0
         Task {
+            groupedAds = await filterUnplayableAds(newAds: groups)        // <-- new: remove bad videos before playback
             await preloadAllAssets()
             playCurrentGroup()
             self.startAutoSync(screenId: self.screenId)
@@ -125,7 +126,48 @@ final class AdPlayerViewModelNew: ObservableObject {
             return nil
         }
     }
+    
+    // MARK: - NEW: Remove unplayable video items & empty groups
+    private func filterUnplayableAds(newAds: [AdSequenceGroup]) async -> [AdSequenceGroup] {
+            print("🔎 Validating playable videos before starting playback…")
+            var newGroups: [AdSequenceGroup] = []
 
+            for group in newAds {
+                var keptAds: [AdItemModel] = []
+                for ad in group.ii {
+                    // images always kept (we assume)
+                    if ad.assettype.lowercased() != "video" {
+                        keptAds.append(ad)
+                        continue
+                    }
+
+                    // for video, require a local URL or remote URL
+                    guard let candidateURL = localURLs[ad.itemurl] ?? URL(string: ad.itemurl) else {
+                        print("❌ Removing (invalid URL):", ad.itemurl)
+                        continue
+                    }
+
+                    let playable = await isVideoPlayable(url: candidateURL)
+                    if playable {
+                        keptAds.append(ad)
+                    } else {
+                        print("❌ Removing unplayable video:", ad.itemurl)
+                    }
+                }
+
+                if !keptAds.isEmpty {
+                    var g = group
+                    g.ii = keptAds
+                    newGroups.append(g)
+                } else {
+                    print("⚠️ Removing entire group \(group.sequence) because it has no playable items")
+                }
+            }
+
+            // apply filtered groups
+            return newGroups
+        }
+    
     // MARK: - Play current group (from local cache)
     private func playCurrentGroup() {
         guard currentIndex < groupedAds.count else { return }
@@ -160,16 +202,6 @@ final class AdPlayerViewModelNew: ObservableObject {
             return
         }
 
-        Task {
-            let isValid = await isVideoPlayable(url: localURL)
-            print("Playable:", isValid)
-            
-            guard isValid else {
-                transitionToNextItem()
-                return
-            }
-        }
-        
         activePlayer = AVPlayer(url: localURL)
         activePlayer?.play()
         
@@ -356,21 +388,6 @@ final class AdPlayerViewModelNew: ObservableObject {
         }
     }
 
-//    private func preloadPendingGroups() async {
-//        guard !pendingGroups.isEmpty else { return }
-//
-//        print("⏳ Preloading NEW playlist assets…")
-//
-//        let allPendingAds = pendingGroups.flatMap { $0.ii }
-//        for ad in allPendingAds {
-//            if let url = await downloadAsset(ad.itemurl) {
-//                localURLs[ad.itemurl] = url
-//            }
-//        }
-//
-//        print("✅ Finished preloading NEW playlist")
-//    }
-
     /// Returns only NEW ads that do NOT exist in old playlist.
     private func computeDiff(old oldGroups: [AdSequenceGroup],
                              new newGroups: [AdSequenceGroup]) -> [AdItemModel] {
@@ -400,8 +417,8 @@ final class AdPlayerViewModelNew: ObservableObject {
     private func preloadNewItems(old oldGroups: [AdSequenceGroup],
                                  new newGroups: [AdSequenceGroup]) async {
         
-        let newItems = computeDiff(old: oldGroups, new: newGroups)
-
+        let filteredGroups = await filterUnplayableAds(newAds: newGroups)        // <-- new: remove bad videos before playback
+        let newItems = computeDiff(old: oldGroups, new: filteredGroups)
         print("🆕 Found \(newItems.count) NEW items to download")
 
         for ad in newItems {

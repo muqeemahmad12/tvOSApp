@@ -7,7 +7,6 @@
 	objects = {
 
 /* Begin PBXFileReference section */
-		11E7CCCCF838D4985DD6FF21 /* Pods-TVShowBrowser.release.xcconfig */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = text.xcconfig; name = "Pods-TVShowBrowser.release.xcconfig"; path = "Target Support Files/Pods-TVShowBrowser/Pods-TVShowBrowser.release.xcconfig"; sourceTree = "<group>"; };
 		54CE24682E95221600306053 /* TVShowBrowser.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = TVShowBrowser.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		54E433752EA8E68700E0F7D4 /* GoogleInteractiveMediaAds.xcframework */ = {isa = PBXFileReference; expectedSignature = "AppleDeveloperProgram:EQHXZ8M8AV:Google LLC"; lastKnownFileType = wrapper.xcframework; name = GoogleInteractiveMediaAds.xcframework; path = "Pods/GoogleAds-IMA-tvOS-SDK/GoogleInteractiveMediaAds.xcframework"; sourceTree = "<group>"; };
 		CCA9E25167A26A8961454408 /* Pods_TVShowBrowser.framework */ = {isa = PBXFileReference; explicitFileType = wrapper.framework; includeInIndex = 0; path = Pods_TVShowBrowser.framework; sourceTree = BUILT_PRODUCTS_DIR; };
@@ -37,7 +36,6 @@
 			children = (
 				54CE24692E95221600306053 /* Products */,
 				54CE246A2E95221600306053 /* TVShowBrowser */,
-				3E50E671B4B0C102FF9655E7 /* Pods */,
 				FE26A09E68F80CC01035D271 /* Frameworks */,
 			);
 			sourceTree = "<group>";

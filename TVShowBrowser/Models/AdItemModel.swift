@@ -19,7 +19,7 @@ struct AdSequenceGroup: Codable, Identifiable, Equatable {
     var id: Int { sequence }
     let facilityid: String
     let sequence: Int
-    let ii: [AdItemModel]
+    var ii: [AdItemModel]
     let is_active: Bool
     
     static func == (lhs: AdSequenceGroup, rhs: AdSequenceGroup) -> Bool {
