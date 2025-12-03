@@ -7,15 +7,11 @@
 
 import SwiftUI
 
-struct ActivationScreenView: View {
+struct ActivationView: View {
     @State private var navigate = false
     @StateObject private var listVM = AdListViewModel()
     @StateObject private var vm = ActivationViewModel()
-    	
-    // Example activation code
-    let activationCode = ["D", "O", "C", "3", "R", "E"]
-    var codeString: String { activationCode.joined() }
-    
+
     var body: some View {
         ZStack {
             // Background
@@ -23,17 +19,7 @@ struct ActivationScreenView: View {
                 .resizable()
                 .scaledToFill()
                 .ignoresSafeArea()
-            
-            if !vm.deviceCode.isEmpty {
-                            VStack {
-                                Text("Device Code: \(vm.deviceCode)")
-                                Text("User Code: \(vm.userCode)")
-                                Text("Status: \(vm.activationStatus)")
-                                Text("Expires At: \(vm.expiresAt)")
-                            }
-                            .padding()
-                        }
-            
+
             VStack(spacing: 40) {
 
                 // Title
@@ -49,13 +35,13 @@ struct ActivationScreenView: View {
                     VStack(spacing: 40) {
 
                         // QR Code
-                        QRCodeView(text: codeString)
+                        QRCodeView(text: vm.qrURL)
                             .frame(width: 450, height: 450)
                         Spacer()
                         // Activation Code boxes — NOW MOVED TO LEFT
                         HStack(spacing: 20) {
-                            ForEach(activationCode, id: \.self) { char in
-                                Text(char)
+                            ForEach(Array(vm.activationCode.enumerated()), id: \.offset) { index, char in
+                                Text(String(char))
                                     .font(.system(size: 60, weight: .semibold))
                                     .foregroundColor(Color(hex: "#505050"))
                                     .frame(width: 100, height: 100)
@@ -66,7 +52,7 @@ struct ActivationScreenView: View {
                             }
                         }
                     }
-//                    Spacer()
+
                     // RIGHT — Instructions
                     VStack(alignment: .leading, spacing: 40) {
 
@@ -113,16 +99,16 @@ struct ActivationScreenView: View {
 //            .padding(.horizontal, 60)
         }
         .onAppear {
-//            vm.activateDevice()
+            vm.activateDevice()
             // Auto navigate after 10 seconds
-            DispatchQueue.main.asyncAfter(deadline: .now() + 10) {
-                UIApplication.shared.setRootView(
-                    AdPlayerView(listVM: listVM)
-                        .ignoresSafeArea()
-                )
-
-                listVM.fetchAds(screenId: "174", reqNum: 1)
-            }
+//            DispatchQueue.main.asyncAfter(deadline: .now() + 10) {
+//                UIApplication.shared.setRootView(
+//                    AdPlayerView(listVM: listVM)
+//                        .ignoresSafeArea()
+//                )
+//
+//                listVM.fetchAds(screenId: "174", reqNum: 1)
+//            }
         }        
     }
 }

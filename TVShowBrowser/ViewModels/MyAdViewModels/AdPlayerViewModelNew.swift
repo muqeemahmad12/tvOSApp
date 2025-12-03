@@ -28,7 +28,7 @@ final class AdPlayerViewModelNew: ObservableObject {
     private var syncTimer: Timer?
     private var reqNum = 1
     private var screenId = "174"
-    private var repeatInTime: Double = 5 * 60
+    private var repeatInTime: Double = 2 * 60
     private var lastAppliedSync: Date = .distantPast
 
 
@@ -259,7 +259,7 @@ final class AdPlayerViewModelNew: ObservableObject {
     // MARK: - Fallback timer if no video
     private func startGroupTimer() {
         timer?.invalidate()
-        timer = Timer.scheduledTimer(withTimeInterval: 20, repeats: false) { [weak self] _ in
+        timer = Timer.scheduledTimer(withTimeInterval: 10, repeats: false) { [weak self] _ in
             Task { @MainActor in
                 self?.transitionToNextItem()
             }
@@ -268,11 +268,11 @@ final class AdPlayerViewModelNew: ObservableObject {
 
     // MARK: - Transition
     private func transitionToNextItem() {
-        withAnimation(.easeInOut(duration: 0.8)) {
-            slideOffset = -UIScreen.main.bounds.width
-        }
+//        withAnimation(.easeInOut(duration: 0.8)) {
+//            slideOffset = -UIScreen.main.bounds.width
+//        }
 
-        DispatchQueue.main.asyncAfter(deadline: .now() + 0.8) {
+//        DispatchQueue.main.asyncAfter(deadline: .now() + 0.8) {
             self.currentIndex += 1
             if self.currentIndex >= self.groupedAds.count {
                 print("🔁 Loop finished.")
@@ -295,7 +295,7 @@ final class AdPlayerViewModelNew: ObservableObject {
 
             self.slideOffset = 0
             self.playCurrentGroup()
-        }
+//        }
     }
     
     // MARK: - Safely apply new synced playlist

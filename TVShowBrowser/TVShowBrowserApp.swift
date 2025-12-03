@@ -26,7 +26,7 @@ struct TVShowBrowserApp: App {
     
     var body: some Scene {
         WindowGroup {
-            ActivationScreenView()
+            ActivationView()
         }
     }
 }
