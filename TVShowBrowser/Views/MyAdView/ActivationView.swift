@@ -99,16 +99,16 @@ struct ActivationView: View {
 //            .padding(.horizontal, 60)
         }
         .onAppear {
-            vm.activateDevice()
+//            vm.activateDevice()
             // Auto navigate after 10 seconds
-//            DispatchQueue.main.asyncAfter(deadline: .now() + 10) {
-//                UIApplication.shared.setRootView(
-//                    AdPlayerView(listVM: listVM)
-//                        .ignoresSafeArea()
-//                )
-//
-//                listVM.fetchAds(screenId: "174", reqNum: 1)
-//            }
+            DispatchQueue.main.asyncAfter(deadline: .now() + 10) {
+                UIApplication.shared.setRootView(
+                    AdPlayerView(listVM: listVM)
+                        .ignoresSafeArea()
+                )
+
+                listVM.fetchAds(screenId: "174", reqNum: 1)
+            }
         }        
     }
 }
