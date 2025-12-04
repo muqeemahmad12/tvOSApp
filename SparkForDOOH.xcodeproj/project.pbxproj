@@ -8,8 +8,6 @@
 
 /* Begin PBXFileReference section */
 		54CE24682E95221600306053 /* SparkForDOOH.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = SparkForDOOH.app; sourceTree = BUILT_PRODUCTS_DIR; };
-		54E433752EA8E68700E0F7D4 /* GoogleInteractiveMediaAds.xcframework */ = {isa = PBXFileReference; expectedSignature = "AppleDeveloperProgram:EQHXZ8M8AV:Google LLC"; lastKnownFileType = wrapper.xcframework; name = GoogleInteractiveMediaAds.xcframework; path = "Pods/GoogleAds-IMA-tvOS-SDK/GoogleInteractiveMediaAds.xcframework"; sourceTree = "<group>"; };
-		CCA9E25167A26A8961454408 /* Pods_SparkForDOOH.framework */ = {isa = PBXFileReference; explicitFileType = wrapper.framework; includeInIndex = 0; path = Pods_SparkForDOOH.framework; sourceTree = BUILT_PRODUCTS_DIR; };
 /* End PBXFileReference section */
 
 /* Begin PBXFileSystemSynchronizedRootGroup section */
@@ -51,8 +49,6 @@
 		FE26A09E68F80CC01035D271 /* Frameworks */ = {
 			isa = PBXGroup;
 			children = (
-				54E433752EA8E68700E0F7D4 /* GoogleInteractiveMediaAds.xcframework */,
-				CCA9E25167A26A8961454408 /* Pods_SparkForDOOH.framework */,
 			);
 			name = Frameworks;
 			sourceTree = "<group>";
@@ -270,10 +266,7 @@
 				ENABLE_PREVIEWS = YES;
 				ENABLE_USER_SCRIPT_SANDBOXING = NO;
 				EXCLUDED_ARCHS = "";
-				FRAMEWORK_SEARCH_PATHS = (
-					"$(inherited)",
-					"$(PODS_ROOT)/GoogleAds-IMA-tvOS-SDK/GoogleInteractiveMediaAds.xcframework/$(PLATFORM_NAME)",
-				);
+				FRAMEWORK_SEARCH_PATHS = "$(inherited)";
 				GENERATE_INFOPLIST_FILE = YES;
 				INFOPLIST_KEY_CFBundleDisplayName = "Spark for DOOH";
 				INFOPLIST_KEY_UILaunchScreen_Generation = YES;
@@ -304,10 +297,7 @@
 				ENABLE_PREVIEWS = YES;
 				ENABLE_USER_SCRIPT_SANDBOXING = NO;
 				EXCLUDED_ARCHS = "";
-				FRAMEWORK_SEARCH_PATHS = (
-					"$(inherited)",
-					"$(PODS_ROOT)/GoogleAds-IMA-tvOS-SDK/GoogleInteractiveMediaAds.xcframework/$(PLATFORM_NAME)",
-				);
+				FRAMEWORK_SEARCH_PATHS = "$(inherited)";
 				GENERATE_INFOPLIST_FILE = YES;
 				INFOPLIST_KEY_CFBundleDisplayName = "Spark for DOOH";
 				INFOPLIST_KEY_UILaunchScreen_Generation = YES;
