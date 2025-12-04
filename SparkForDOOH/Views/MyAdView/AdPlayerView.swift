@@ -9,7 +9,7 @@ import SwiftUI
 import AVKit
 
 struct AdPlayerView: View {
-    @StateObject private var viewModel = AdPlayerViewModelNew()
+    @StateObject private var viewModel = AdPlayerViewModel()
     @ObservedObject var listVM: AdPlaylistViewModel
     @State private var videoFullScreen = false
 
