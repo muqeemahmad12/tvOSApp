@@ -7,14 +7,15 @@
 
 import Foundation
 
+/// Simple shared API client for playlist / item sequence info.
 final class APIService {
     static let shared = APIService()
     private init() {}
 
-    func fetchItemSeqInfo(screenId: String, reqNum: Int, completion: @escaping (Result<ItemSeqInfoResponse, Error>) -> Void) {
+    /// Fetch the ad item sequence info for a given screen.
+    func fetchItemSeqInfo(screenId: String, reqNum: Int) async throws -> ItemSeqInfoResponse {
         guard let url = URL(string: "https://qa-drs-service.doceree.com/drs/v2/quest") else {
-            completion(.failure(NSError(domain: "Invalid URL", code: 0)))
-            return
+            throw URLError(.badURL)
         }
 
         var request = URLRequest(url: url)
@@ -22,37 +23,33 @@ final class APIService {
         request.setValue("application/json", forHTTPHeaderField: "Content-Type")
 
         let payload: [String: Any] = ["screenid": screenId, "reqNum": reqNum]
-        request.httpBody = try? JSONSerialization.data(withJSONObject: payload, options: [])
+        request.httpBody = try JSONSerialization.data(withJSONObject: payload, options: [])
 
-        URLSession.shared.dataTask(with: request) { data, response, error in
-            if let error = error {
-                completion(.failure(error))
-                return
-            }
+        let (data, response) = try await URLSession.shared.data(for: request)
 
-            guard let data = data else {
-                completion(.failure(NSError(domain: "No data returned", code: 0)))
-                return
-            }
+        guard let http = response as? HTTPURLResponse,
+              (200...299).contains(http.statusCode) else {
+            throw URLError(.badServerResponse)
+        }
 
-            do {
-                let decoded = try JSONDecoder().decode(ItemSeqInfoResponse.self, from: data)
-                let groups = decoded.groupedAds
-                print("✅ API Success — Total Groups: \(groups.count)")
-                for group in groups {
-                    print("▶️ Sequence \(group.sequence): \(group.ii.count) ads")
-                    for ad in group.ii {
-                        print("   🔹 \(ad.itemid): \(ad.assettype) — \(ad.itemurl)")
-                    }
+        do {
+            let decoded = try JSONDecoder().decode(ItemSeqInfoResponse.self, from: data)
+            let groups = decoded.groupedAds
+            print("✅ API Success — Total Groups: \(groups.count)")
+            for group in groups {
+                print("▶️ Sequence \(group.sequence): \(group.ii.count) ads")
+                for ad in group.ii {
+                    print("   🔹 \(ad.itemid): \(ad.assettype) — \(ad.itemurl)")
                 }
-                completion(.success(decoded))
-            } catch {
-                print("❌ Decoding error: \(error)")
-                if let raw = String(data: data, encoding: .utf8) {
-                    print("Raw JSON:\n\(raw)")
-                }
-                completion(.failure(error))
             }
-        }.resume()
+            return decoded
+        } catch {
+            print("❌ Decoding error: \(error)")
+            if let raw = String(data: data, encoding: .utf8) {
+                print("Raw JSON:\n\(raw)")
+            }
+            throw error
+        }
     }
 }
+

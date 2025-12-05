@@ -356,22 +356,15 @@ private extension AdPlayerViewModel {
         reqNum += 1
         print("🌐 Running periodic API sync... with reqNum: \(reqNum)")
 
-        APIService.shared.fetchItemSeqInfo(screenId: screenId, reqNum: reqNum) { [weak self] result in
-            guard let self = self else { return }
-
-            DispatchQueue.main.async {
-                switch result {
-                case .success(let response):
-                    print("🔄 Sync data fetched: \(response.groupedAds.count) groups")
-                    self.pendingGroups = response.groupedAds
-
-                    Task {
-                        await self.applyPendingPlaylistSafely()
-                    }
-
-                case .failure(let error):
-                    print("❌ Sync failed:", error.localizedDescription)
-                }
+        Task {
+            do {
+                let response = try await APIService.shared.fetchItemSeqInfo(screenId: screenId,
+                                                                            reqNum: reqNum)
+                print("🔄 Sync data fetched: \(response.groupedAds.count) groups")
+                pendingGroups = response.groupedAds
+                await applyPendingPlaylistSafely()
+            } catch {
+                print("❌ Sync failed:", error.localizedDescription)
             }
         }
     }

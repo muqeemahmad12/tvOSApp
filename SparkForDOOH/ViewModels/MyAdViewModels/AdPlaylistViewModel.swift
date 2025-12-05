@@ -19,22 +19,19 @@ final class AdPlaylistViewModel: ObservableObject {
         isLoading = true
         errorMessage = nil
 
-        APIService.shared.fetchItemSeqInfo(screenId: screenId, reqNum: reqNum) { [weak self] result in
-            DispatchQueue.main.async {
-                guard let self = self else { return }
-                self.isLoading = false
-
-                switch result {
-                case .success(let response):
-                    // ✅ Keep both grouped and flat
-                    let groups = response.groupedAds
-                    self.groupedAds = groups
-                    self.ads = groups.flatMap { $0.ii }
-                case .failure(let error):
-                    self.errorMessage = error.localizedDescription
-                    print("❌ API Failed:", error.localizedDescription)
-                }
+        Task {
+            do {
+                let response = try await APIService.shared.fetchItemSeqInfo(screenId: screenId,
+                                                                            reqNum: reqNum)
+                let groups = response.groupedAds
+                groupedAds = groups
+                ads = groups.flatMap { $0.ii }
+            } catch {
+                errorMessage = error.localizedDescription
+                print("❌ API Failed:", error.localizedDescription)
             }
+
+            isLoading = false
         }
     }
 }
