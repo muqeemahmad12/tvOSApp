@@ -14,9 +14,8 @@ final class APIService {
 
     /// Fetch the ad item sequence info for a given screen.
     func fetchItemSeqInfo(screenId: String, reqNum: Int) async throws -> ItemSeqInfoResponse {
-        guard let url = URL(string: "https://qa-drs-service.doceree.com/drs/v2/quest") else {
-            throw URLError(.badURL)
-        }
+        let base = AppConfig.current.drsBaseURL
+        let url = base.appendingPathComponent("drs/v2/quest")
 
         var request = URLRequest(url: url)
         request.httpMethod = "POST"

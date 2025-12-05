@@ -32,9 +32,10 @@ struct ActivationView: View {
             }
         }
         .onAppear {
-            // For testing: fire activation flow, but always advance after 10 seconds.
+            // For testing: fire activation flow, but always advance after configured delay.
             vm.activateDevice()
-            DispatchQueue.main.asyncAfter(deadline: .now() + 10) {
+            let delay = AppConfig.current.activationTestTransitionDelay
+            DispatchQueue.main.asyncAfter(deadline: .now() + delay) {
                 onActivated()
             }
         }

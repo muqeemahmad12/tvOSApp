@@ -27,8 +27,8 @@ final class AdPlayerViewModel: ObservableObject {
     fileprivate var timer: Timer?
     fileprivate var syncTimer: Timer?
     fileprivate var reqNum = 1
-    fileprivate var screenId = "174"
-    fileprivate var repeatInTime: Double = 2 * 60
+    fileprivate var screenId: String
+    fileprivate var repeatInTime: TimeInterval
     fileprivate var lastAppliedSync: Date = .distantPast
 
     // MARK: - File Manager helpers
@@ -42,6 +42,11 @@ final class AdPlayerViewModel: ObservableObject {
         return dir
     }
     fileprivate var localURLs: [String: URL] = [:]
+
+    init(config: AppConfig = .current) {
+        self.screenId = config.screenId
+        self.repeatInTime = config.playlistRepeatInterval
+    }
 }
 
 // MARK: - Public API

@@ -11,12 +11,9 @@ final class ActivationAPI {
     static let shared = ActivationAPI()
     private init() {}
 
-    private let baseURL = "https://dev-keen.doceree.com"
-
     func requestActivation(payload: ActivationRequest) async throws -> ActivationData {
-        guard let url = URL(string: "\(baseURL)/v1/dooh/device/activation/request") else {
-            throw URLError(.badURL)
-        }
+        let base = AppConfig.current.activationBaseURL
+        let url = base.appendingPathComponent("v1/dooh/device/activation/request")
 
         var req = URLRequest(url: url)
         req.httpMethod = "POST"

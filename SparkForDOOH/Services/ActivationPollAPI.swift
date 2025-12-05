@@ -11,12 +11,9 @@ final class ActivationPollAPI {
     static let shared = ActivationPollAPI()
     private init() {}
 
-    private let baseURL = "https://dev-keen.doceree.com"
-
     func pollOnce(deviceCode: String) async throws -> ActivationPollData {
-        guard let url = URL(string: "\(baseURL)/v1/dooh/device/activation/poll") else {
-            throw URLError(.badURL)
-        }
+        let base = AppConfig.current.activationBaseURL
+        let url = base.appendingPathComponent("v1/dooh/device/activation/poll")
 
         var req = URLRequest(url: url)
         req.httpMethod = "POST"
