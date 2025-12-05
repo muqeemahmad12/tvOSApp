@@ -112,10 +112,7 @@ struct AdPlayerView: View {
 private struct PlayerLoadingPlaceholderView: View {
     var body: some View {
         ZStack {
-            Image("placeholder_image")
-                .resizable()
-                .scaledToFill()
-                .ignoresSafeArea()
+            FullscreenBackground(imageName: "placeholder_image")
 
             VStack {
                 Text("Loading Informational Sparks \n for your clinical display")

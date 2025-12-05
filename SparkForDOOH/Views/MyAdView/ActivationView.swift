@@ -15,87 +15,20 @@ struct ActivationView: View {
 
     var body: some View {
         ZStack {
-            // Background
-            Image("placeholder_image")
-                .resizable()
-                .scaledToFill()
-                .ignoresSafeArea()
+            FullscreenBackground(imageName: "placeholder_image")
 
             VStack(spacing: 40) {
-
-                // Title
-                Text("Activate your TV screen")
-                    .font(.system(size: 85, weight: .semibold))
-                    .foregroundColor(Color(hex: "#138bcc"))
-                    .padding(.top, 50)
+                ActivationTitle()
 
                 Spacer()
                 HStack(alignment: .top, spacing: 80) {
-
-                    // LEFT SIDE — QR + Activation Code
-                    VStack(spacing: 40) {
-
-                        // QR Code
-                        QRCodeView(text: vm.qrURL)
-                            .frame(width: 450, height: 450)
-                        Spacer()
-                        // Activation Code boxes — NOW MOVED TO LEFT
-                        HStack(spacing: 20) {
-                            ForEach(Array(vm.activationCode.enumerated()), id: \.offset) { index, char in
-                                Text(String(char))
-                                    .font(.system(size: 60, weight: .semibold))
-                                    .foregroundColor(Color(hex: "#505050"))
-                                    .frame(width: 100, height: 100)
-                                    .background(
-                                        RoundedRectangle(cornerRadius: 20)
-                                            .stroke(Color.gray.opacity(0.6), lineWidth: 4)
-                                    )
-                            }
-                        }
-                    }
-
-                    // RIGHT — Instructions
-                    VStack(alignment: .leading, spacing: 40) {
-
-                        VStack(alignment: .leading, spacing: 5) {
-                            Text("QR Method:")
-                                .font(.system(size: 35, weight: .medium))
-                                .foregroundColor(Color(hex: "#505050"))
-
-                            Group {
-                                Text("- Open your phone’s camera app")
-                                Text("- Log-in to website using credentials provided by vendor")
-                                Text("- Choose the hospital / clinic where TV is installed")
-                                Text("- Select correct TV screen from list by matching Department & Location")
-                            }
-                            .font(.system(size: 25))
-                            .foregroundColor(Color(hex: "#505050"))
-                        }
-
-                        VStack(alignment: .leading, spacing: 5) {
-                            Text("Code Method:")
-                                .font(.system(size: 35, weight: .medium))
-                                .foregroundColor(Color(hex: "#505050"))
-
-                            Group {
-                                Text("- Goto https://spark.doceree.com")
-                                Text("- Login using credentials provided by vendor")
-                                Text("- Choose the hospital / clinic where TV is installed")
-                                Text("- Select correct TV screen from list by matching Department & Location")
-                                Text("- Enter the 6 digit code shown on this screen")
-                            }
-                            .font(.system(size: 25))
-                            .foregroundColor(Color(hex: "#505050"))
-                        }
-                    }
+                    ActivationCodeSection(activationCode: vm.activationCode,
+                                          qrURL: vm.qrURL)
+                    ActivationInstructionsSection()
                     Spacer()
                 }
 
-                // Footer Note
-                Text("Note: This app is developed for healthcare organizations and their trusted vendor partners, this application provides centralized control of content displayed on facility TVs. For authorized use only.")
-                    .font(.system(size: 18))
-                    .foregroundColor(Color(hex: "#505050"))   // your color code
-                    .padding(.bottom, 20)
+                ActivationFooter()
             }
         }
         .onAppear {
@@ -115,4 +48,87 @@ struct ActivationView: View {
 //        }
     }
 }
+
+// MARK: - Subviews
+
+private struct ActivationTitle: View {
+    var body: some View {
+        Text("Activate your TV screen")
+            .font(.system(size: 85, weight: .semibold))
+            .foregroundColor(Color(hex: "#138bcc"))
+            .padding(.top, 50)
+    }
+}
+
+private struct ActivationCodeSection: View {
+    let activationCode: String
+    let qrURL: String
+
+    var body: some View {
+        VStack(spacing: 40) {
+            QRCodeView(text: qrURL)
+                .frame(width: 450, height: 450)
+            Spacer()
+            HStack(spacing: 20) {
+                ForEach(Array(activationCode.enumerated()), id: \.offset) { _, char in
+                    Text(String(char))
+                        .font(.system(size: 60, weight: .semibold))
+                        .foregroundColor(Color(hex: "#505050"))
+                        .frame(width: 100, height: 100)
+                        .background(
+                            RoundedRectangle(cornerRadius: 20)
+                                .stroke(Color.gray.opacity(0.6), lineWidth: 4)
+                        )
+                }
+            }
+        }
+    }
+}
+
+private struct ActivationInstructionsSection: View {
+    var body: some View {
+        VStack(alignment: .leading, spacing: 40) {
+            VStack(alignment: .leading, spacing: 5) {
+                Text("QR Method:")
+                    .font(.system(size: 35, weight: .medium))
+                    .foregroundColor(Color(hex: "#505050"))
+
+                Group {
+                    Text("- Open your phone’s camera app")
+                    Text("- Log-in to website using credentials provided by vendor")
+                    Text("- Choose the hospital / clinic where TV is installed")
+                    Text("- Select correct TV screen from list by matching Department & Location")
+                }
+                .font(.system(size: 25))
+                .foregroundColor(Color(hex: "#505050"))
+            }
+
+            VStack(alignment: .leading, spacing: 5) {
+                Text("Code Method:")
+                    .font(.system(size: 35, weight: .medium))
+                    .foregroundColor(Color(hex: "#505050"))
+
+                Group {
+                    Text("- Goto https://spark.doceree.com")
+                    Text("- Login using credentials provided by vendor")
+                    Text("- Choose the hospital / clinic where TV is installed")
+                    Text("- Select correct TV screen from list by matching Department & Location")
+                    Text("- Enter the 6 digit code shown on this screen")
+                }
+                .font(.system(size: 25))
+                .foregroundColor(Color(hex: "#505050"))
+            }
+        }
+    }
+}
+
+private struct ActivationFooter: View {
+    var body: some View {
+        Text("Note: This app is developed for healthcare organizations and their trusted vendor partners, this application provides centralized control of content displayed on facility TVs. For authorized use only.")
+            .font(.system(size: 18))
+            .foregroundColor(Color(hex: "#505050"))
+            .padding(.bottom, 20)
+    }
+}
+
 
