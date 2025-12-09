@@ -7,6 +7,8 @@
 
 import Foundation
 
+/// Service that polls the backend for activation status of a device, with
+/// a small retry/backoff loop for resilience.
 final class ActivationPollAPI {
     static let shared = ActivationPollAPI()
     private init() {}

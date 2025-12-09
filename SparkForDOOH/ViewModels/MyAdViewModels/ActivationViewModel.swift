@@ -8,6 +8,8 @@
 import Foundation
 import UIKit
 
+/// Handles initial device activation: requesting activation, polling status,
+/// and exposing activation codes / QR URL and user-friendly error messages.
 @MainActor
 final class ActivationViewModel: ObservableObject {
     @Published var deviceCode = ""

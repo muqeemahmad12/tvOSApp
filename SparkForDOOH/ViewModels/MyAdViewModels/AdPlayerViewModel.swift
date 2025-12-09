@@ -9,6 +9,8 @@ import Foundation
 import AVKit
 import SwiftUI
 
+/// Orchestrates ad playback: preloads assets, manages the current group,
+/// loops through the playlist, and periodically syncs updated content.
 @MainActor
 final class AdPlayerViewModel: ObservableObject {
     // MARK: - Published state

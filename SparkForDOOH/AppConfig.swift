@@ -7,6 +7,9 @@
 
 import Foundation
 
+/// Centralised configuration for environment-specific values (URLs, screenId, timing).
+/// Values are primarily sourced from `Info.plist` / build settings and fall back
+/// to sensible QA defaults when not provided.
 struct AppConfig {
     static let current = AppConfig()
 

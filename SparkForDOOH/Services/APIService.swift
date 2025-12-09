@@ -7,7 +7,8 @@
 
 import Foundation
 
-/// Simple shared API client for playlist / item sequence info.
+/// Simple shared API client for playlist / item sequence info from the DRS backend.
+/// Responsible for making the network call and decoding into `ItemSeqInfoResponse`.
 final class APIService {
     static let shared = APIService()
     private init() {}

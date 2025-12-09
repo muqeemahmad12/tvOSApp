@@ -8,6 +8,8 @@
 import Foundation
 import Combine
 
+/// Loads and exposes the current ad playlist (grouped ads) for a given screen,
+/// handling loading state, basic retries, and user-friendly error messages.
 @MainActor
 final class AdPlaylistViewModel: ObservableObject {
     @Published var ads: [AdItemModel] = []                // Flattened list (optional)

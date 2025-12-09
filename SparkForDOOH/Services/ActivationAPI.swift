@@ -7,6 +7,8 @@
 
 import Foundation
 
+/// Service responsible for requesting activation for this device.
+/// Wraps the activation HTTP endpoint and decodes `ActivationResponse`.
 final class ActivationAPI {
     static let shared = ActivationAPI()
     private init() {}
