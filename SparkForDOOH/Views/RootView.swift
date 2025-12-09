@@ -18,7 +18,7 @@ struct RootView: View {
             case .activating:
                 ActivationView {
                     // When activation completes, start fetching ads and switch to player
-                    adListVM.fetchAds(screenId: "174", reqNum: 1)
+                    adListVM.fetchAds(screenId: AppConfig.current.screenId, reqNum: 1)
                     appVM.phase = .playing
                 }
             case .playing:

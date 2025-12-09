@@ -30,18 +30,49 @@ struct AppConfig {
     let activationAutoAdvanceForDebug: Bool
 
     init(
-        drsBaseURL: URL = URL(string: "https://qa-drs-service.doceree.com")!,
-        activationBaseURL: URL = URL(string: "https://dev-keen.doceree.com")!,
-        screenId: String = "174",
+        drsBaseURL: URL? = nil,
+        activationBaseURL: URL? = nil,
+        screenId: String? = nil,
         playlistRepeatInterval: TimeInterval = 2 * 60,
         activationTestTransitionDelay: TimeInterval = 10,
         activationAutoAdvanceForDebug: Bool = false
     ) {
+        // Prefer values injected via Info.plist / build settings, with sensible fallbacks.
         self.drsBaseURL = drsBaseURL
+            ?? AppConfig.urlFromInfoPlist(key: "DRS_BASE_URL")
+            ?? URL(string: "https://qa-drs-service.doceree.com")!
+
         self.activationBaseURL = activationBaseURL
+            ?? AppConfig.urlFromInfoPlist(key: "ACTIVATION_BASE_URL")
+            ?? URL(string: "https://dev-keen.doceree.com")!
+
         self.screenId = screenId
+            ?? AppConfig.stringFromInfoPlist(key: "SCREEN_ID")
+            ?? "174"
+
         self.playlistRepeatInterval = playlistRepeatInterval
         self.activationTestTransitionDelay = activationTestTransitionDelay
         self.activationAutoAdvanceForDebug = activationAutoAdvanceForDebug
+    }
+
+    // MARK: - Helpers
+
+    /// Read a URL value from Info.plist using the given key.
+    private static func urlFromInfoPlist(key: String) -> URL? {
+        guard let value = Bundle.main.object(forInfoDictionaryKey: key) as? String,
+              let url = URL(string: value),
+              !value.isEmpty else {
+            return nil
+        }
+        return url
+    }
+
+    /// Read a String value from Info.plist using the given key.
+    private static func stringFromInfoPlist(key: String) -> String? {
+        guard let value = Bundle.main.object(forInfoDictionaryKey: key) as? String,
+              !value.isEmpty else {
+            return nil
+        }
+        return value
     }
 }
