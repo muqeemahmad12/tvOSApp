@@ -24,31 +24,36 @@ final class APIService {
         let payload: [String: Any] = ["screenid": screenId, "reqNum": reqNum]
         request.httpBody = try JSONSerialization.data(withJSONObject: payload, options: [])
 
-        let (data, response) = try await URLSession.shared.data(for: request)
-
-        guard let http = response as? HTTPURLResponse,
-              (200...299).contains(http.statusCode) else {
-            throw URLError(.badServerResponse)
-        }
-
         do {
-            let decoded = try JSONDecoder().decode(ItemSeqInfoResponse.self, from: data)
-            let groups = decoded.groupedAds
-            print("✅ API Success — Total Groups: \(groups.count)")
-            for group in groups {
-                print("▶️ Sequence \(group.sequence): \(group.ii.count) ads")
-                for ad in group.ii {
-                    print("   🔹 \(ad.itemid): \(ad.assettype) — \(ad.itemurl)")
+            let (data, response) = try await URLSession.shared.data(for: request)
+
+            guard let http = response as? HTTPURLResponse,
+                  (200...299).contains(http.statusCode) else {
+                throw AppError.invalidResponse
+            }
+
+            do {
+                let decoded = try JSONDecoder().decode(ItemSeqInfoResponse.self, from: data)
+                let groups = decoded.groupedAds
+                print("✅ API Success — Total Groups: \(groups.count)")
+                for group in groups {
+                    print("▶️ Sequence \(group.sequence): \(group.ii.count) ads")
+                    for ad in group.ii {
+                        print("   🔹 \(ad.itemid): \(ad.assettype) — \(ad.itemurl)")
+                    }
                 }
+                return decoded
+            } catch {
+                print("❌ Decoding error: \(error)")
+                if let raw = String(data: data, encoding: .utf8) {
+                    print("Raw JSON:\n\(raw)")
+                }
+                throw AppError.decoding
             }
-            return decoded
         } catch {
-            print("❌ Decoding error: \(error)")
-            if let raw = String(data: data, encoding: .utf8) {
-                print("Raw JSON:\n\(raw)")
-            }
-            throw error
+            throw AppError.from(error)
         }
     }
 }
+
 

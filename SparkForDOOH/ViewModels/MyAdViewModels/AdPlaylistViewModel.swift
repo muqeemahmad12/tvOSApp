@@ -21,17 +21,50 @@ final class AdPlaylistViewModel: ObservableObject {
 
         Task {
             do {
-                let response = try await APIService.shared.fetchItemSeqInfo(screenId: screenId,
-                                                                            reqNum: reqNum)
+                let response = try await AdPlaylistViewModel.fetchWithRetry(
+                    attempts: 3,
+                    delaySeconds: 3
+                ) {
+                    try await APIService.shared.fetchItemSeqInfo(screenId: screenId,
+                                                                 reqNum: reqNum)
+                }
+
                 let groups = response.groupedAds
                 groupedAds = groups
                 ads = groups.flatMap { $0.ii }
             } catch {
-                errorMessage = error.localizedDescription
-                print("❌ API Failed:", error.localizedDescription)
+                let appError = AppError.from(error)
+                errorMessage = appError.localizedDescription
+                print("❌ Playlist API Failed:", appError)
             }
 
             isLoading = false
         }
+    }
+
+    // MARK: - Retry helper
+
+    private static func fetchWithRetry<T>(
+        attempts: Int,
+        delaySeconds: UInt64,
+        task: @escaping () async throws -> T
+    ) async throws -> T {
+        var currentAttempt = 0
+        var lastError: Error?
+
+        while currentAttempt < attempts {
+            currentAttempt += 1
+            do {
+                return try await task()
+            } catch {
+                lastError = error
+                if currentAttempt < attempts {
+                    let backoff = delaySeconds * UInt64(currentAttempt)
+                    try? await Task.sleep(nanoseconds: backoff * 1_000_000_000)
+                }
+            }
+        }
+
+        throw lastError ?? AppError.unknown
     }
 }

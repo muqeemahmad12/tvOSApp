@@ -19,22 +19,23 @@ final class ActivationViewModel: ObservableObject {
 
     func activateDevice() {
         isLoading = true
+        errorMessage = nil
 
         Task {
             do {
                 let payload = buildActivationPayload()
 
                 let result = try await ActivationAPI.shared.requestActivation(payload: payload)
-                
+
                 handleActivationResponse(result)
 
-                // polling separately
+                // Start polling separately
                 pollActivation()
             } catch {
-                self.errorMessage = error.localizedDescription
+                let appError = AppError.from(error)
+                self.errorMessage = appError.localizedDescription
+                self.isLoading = false
             }
-
-            self.isLoading = false
         }
     }
     
@@ -44,8 +45,10 @@ final class ActivationViewModel: ObservableObject {
                 let data = try await ActivationPollAPI.shared.pollUntilActivated(deviceCode: deviceCode)
                 activationStatus = data.status
             } catch {
-                self.errorMessage = error.localizedDescription
+                let appError = AppError.from(error)
+                self.errorMessage = appError.localizedDescription
             }
+            self.isLoading = false
         }
     }
 
