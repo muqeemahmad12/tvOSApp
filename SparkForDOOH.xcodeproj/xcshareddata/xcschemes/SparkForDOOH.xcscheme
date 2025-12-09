@@ -29,6 +29,30 @@
       selectedLauncherIdentifier = "Xcode.DebuggerFoundation.Launcher.LLDB"
       shouldUseLaunchSchemeArgsEnv = "YES"
       shouldAutocreateTestPlan = "YES">
+      <Testables>
+         <TestableReference
+            skipped = "NO"
+            parallelizable = "YES">
+            <BuildableReference
+               BuildableIdentifier = "primary"
+               BlueprintIdentifier = "54455B042EE82830003816F0"
+               BuildableName = "SparkForDOOHTests.xctest"
+               BlueprintName = "SparkForDOOHTests"
+               ReferencedContainer = "container:SparkForDOOH.xcodeproj">
+            </BuildableReference>
+         </TestableReference>
+         <TestableReference
+            skipped = "NO"
+            parallelizable = "YES">
+            <BuildableReference
+               BuildableIdentifier = "primary"
+               BlueprintIdentifier = "54455B172EE8289E003816F0"
+               BuildableName = "SparkForDOOHUITests.xctest"
+               BlueprintName = "SparkForDOOHUITests"
+               ReferencedContainer = "container:SparkForDOOH.xcodeproj">
+            </BuildableReference>
+         </TestableReference>
+      </Testables>
    </TestAction>
    <LaunchAction
       buildConfiguration = "Debug"

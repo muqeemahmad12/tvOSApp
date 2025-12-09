@@ -43,9 +43,17 @@ final class AdPlayerViewModel: ObservableObject {
     }
     fileprivate var localURLs: [String: URL] = [:]
 
-    init(config: AppConfig = .current) {
+    /// When true (used mainly in unit tests), skips network-heavy preloading,
+    /// video playability checks, and auto-sync to keep `startPlayback` deterministic.
+    fileprivate let disablePreloadingAndValidation: Bool
+
+    /// Soft cap for in-memory image cache to avoid unbounded growth with very large playlists.
+    fileprivate let maxImageCacheEntries = 200
+
+    init(config: AppConfig = .current, disablePreloadingAndValidation: Bool = false) {
         self.screenId = config.screenId
         self.repeatInTime = config.playlistRepeatInterval
+        self.disablePreloadingAndValidation = disablePreloadingAndValidation
     }
 }
 
@@ -59,6 +67,13 @@ extension AdPlayerViewModel {
         }
 
         currentIndex = 0
+
+        // In test mode, keep this synchronous and skip heavy operations.
+        if disablePreloadingAndValidation {
+            groupedAds = groups
+            playCurrentGroup()
+            return
+        }
 
         Task {
             groupedAds = await filterUnplayableAds(newAds: groups) // remove bad videos before playback
@@ -132,7 +147,7 @@ private extension AdPlayerViewModel {
             if fileName.hasSuffix(".jpg") || fileName.hasSuffix(".png"),
                let img = UIImage(data: data) {
                 await MainActor.run {
-                    imageCache[remoteURLString] = img
+                    storeImage(img, forKey: remoteURLString)
                 }
                 print("🖼️ Cached image during download:", fileName)
             }
@@ -304,7 +319,7 @@ private extension AdPlayerViewModel {
             }
 
             if let image = UIImage(data: data) {
-                await MainActor.run { imageCache[ad.itemurl] = image }
+                await MainActor.run { storeImage(image, forKey: ad.itemurl) }
                 print("🖼️ Cached image:", ad.itemurl)
             }
         } catch {
@@ -418,12 +433,24 @@ private extension AdPlayerViewModel {
             if ["jpg", "jpeg", "png"].contains(ext),
                let data = try? Data(contentsOf: url),
                let img = UIImage(data: data) {
-                imageCache[key] = img
+                storeImage(img, forKey: key)
             }
         }
 
         print("🎉 NEW playlist ready — begin playback")
         playCurrentGroup()
+    }
+}
+
+// MARK: - Image cache helpers
+private extension AdPlayerViewModel {
+    func storeImage(_ image: UIImage, forKey key: String) {
+        // Simple cap-based eviction (approximate LRU by dropping an arbitrary key).
+        if imageCache.count >= maxImageCacheEntries,
+           let removeKey = imageCache.keys.first {
+            imageCache.removeValue(forKey: removeKey)
+        }
+        imageCache[key] = image
     }
 }
 

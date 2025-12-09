@@ -7,11 +7,21 @@
 		<key>SparkForDOOH.xcscheme_^#shared#^_</key>
 		<dict>
 			<key>orderHint</key>
-			<integer>2</integer>
+			<integer>0</integer>
+		</dict>
+		<key>SparkForDOOHUITests.xcscheme_^#shared#^_</key>
+		<dict>
+			<key>orderHint</key>
+			<integer>1</integer>
 		</dict>
 	</dict>
 	<key>SuppressBuildableAutocreation</key>
 	<dict>
+		<key>54455B172EE8289E003816F0</key>
+		<dict>
+			<key>primary</key>
+			<true/>
+		</dict>
 		<key>54CE24672E95221600306053</key>
 		<dict>
 			<key>primary</key>

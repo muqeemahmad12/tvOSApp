@@ -91,6 +91,7 @@ struct AdPlayerView: View {
             }
         }
         .ignoresSafeArea() // Ensure the entire player fills the tvOS window
+        .accessibilityIdentifier("AdPlayerRootView")
         // MARK: - ViewModel Triggers
         .onChange(of: listVM.groupedAds) { newGroups in
             if !newGroups.isEmpty {

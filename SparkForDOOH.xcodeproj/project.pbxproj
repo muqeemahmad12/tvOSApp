@@ -6,11 +6,40 @@
 	objectVersion = 77;
 	objects = {
 
+/* Begin PBXContainerItemProxy section */
+		54455B092EE82830003816F0 /* PBXContainerItemProxy */ = {
+			isa = PBXContainerItemProxy;
+			containerPortal = 54CE24602E95221600306053 /* Project object */;
+			proxyType = 1;
+			remoteGlobalIDString = 54CE24672E95221600306053;
+			remoteInfo = SparkForDOOH;
+		};
+		54455B1E2EE8289E003816F0 /* PBXContainerItemProxy */ = {
+			isa = PBXContainerItemProxy;
+			containerPortal = 54CE24602E95221600306053 /* Project object */;
+			proxyType = 1;
+			remoteGlobalIDString = 54CE24672E95221600306053;
+			remoteInfo = SparkForDOOH;
+		};
+/* End PBXContainerItemProxy section */
+
 /* Begin PBXFileReference section */
+		54455B052EE82830003816F0 /* SparkForDOOHTests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = SparkForDOOHTests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
+		54455B182EE8289E003816F0 /* SparkForDOOHUITests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = SparkForDOOHUITests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
 		54CE24682E95221600306053 /* SparkForDOOH.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = SparkForDOOH.app; sourceTree = BUILT_PRODUCTS_DIR; };
 /* End PBXFileReference section */
 
 /* Begin PBXFileSystemSynchronizedRootGroup section */
+		54455B062EE82830003816F0 /* SparkForDOOHTests */ = {
+			isa = PBXFileSystemSynchronizedRootGroup;
+			path = SparkForDOOHTests;
+			sourceTree = "<group>";
+		};
+		54455B192EE8289E003816F0 /* SparkForDOOHUITests */ = {
+			isa = PBXFileSystemSynchronizedRootGroup;
+			path = SparkForDOOHUITests;
+			sourceTree = "<group>";
+		};
 		54CE246A2E95221600306053 /* SparkForDOOH */ = {
 			isa = PBXFileSystemSynchronizedRootGroup;
 			path = SparkForDOOH;
@@ -19,6 +48,20 @@
 /* End PBXFileSystemSynchronizedRootGroup section */
 
 /* Begin PBXFrameworksBuildPhase section */
+		54455B022EE82830003816F0 /* Frameworks */ = {
+			isa = PBXFrameworksBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		54455B152EE8289E003816F0 /* Frameworks */ = {
+			isa = PBXFrameworksBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
 		54CE24652E95221600306053 /* Frameworks */ = {
 			isa = PBXFrameworksBuildPhase;
 			buildActionMask = 2147483647;
@@ -32,8 +75,10 @@
 		54CE245F2E95221600306053 = {
 			isa = PBXGroup;
 			children = (
-				54CE24692E95221600306053 /* Products */,
 				54CE246A2E95221600306053 /* SparkForDOOH */,
+				54455B062EE82830003816F0 /* SparkForDOOHTests */,
+				54455B192EE8289E003816F0 /* SparkForDOOHUITests */,
+				54CE24692E95221600306053 /* Products */,
 				FE26A09E68F80CC01035D271 /* Frameworks */,
 			);
 			sourceTree = "<group>";
@@ -42,6 +87,8 @@
 			isa = PBXGroup;
 			children = (
 				54CE24682E95221600306053 /* SparkForDOOH.app */,
+				54455B052EE82830003816F0 /* SparkForDOOHTests.xctest */,
+				54455B182EE8289E003816F0 /* SparkForDOOHUITests.xctest */,
 			);
 			name = Products;
 			sourceTree = "<group>";
@@ -56,6 +103,52 @@
 /* End PBXGroup section */
 
 /* Begin PBXNativeTarget section */
+		54455B042EE82830003816F0 /* SparkForDOOHTests */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = 54455B0B2EE82830003816F0 /* Build configuration list for PBXNativeTarget "SparkForDOOHTests" */;
+			buildPhases = (
+				54455B012EE82830003816F0 /* Sources */,
+				54455B022EE82830003816F0 /* Frameworks */,
+				54455B032EE82830003816F0 /* Resources */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+				54455B0A2EE82830003816F0 /* PBXTargetDependency */,
+			);
+			fileSystemSynchronizedGroups = (
+				54455B062EE82830003816F0 /* SparkForDOOHTests */,
+			);
+			name = SparkForDOOHTests;
+			packageProductDependencies = (
+			);
+			productName = SparkForDOOHTests;
+			productReference = 54455B052EE82830003816F0 /* SparkForDOOHTests.xctest */;
+			productType = "com.apple.product-type.bundle.unit-test";
+		};
+		54455B172EE8289E003816F0 /* SparkForDOOHUITests */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = 54455B202EE8289E003816F0 /* Build configuration list for PBXNativeTarget "SparkForDOOHUITests" */;
+			buildPhases = (
+				54455B142EE8289E003816F0 /* Sources */,
+				54455B152EE8289E003816F0 /* Frameworks */,
+				54455B162EE8289E003816F0 /* Resources */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+				54455B1F2EE8289E003816F0 /* PBXTargetDependency */,
+			);
+			fileSystemSynchronizedGroups = (
+				54455B192EE8289E003816F0 /* SparkForDOOHUITests */,
+			);
+			name = SparkForDOOHUITests;
+			packageProductDependencies = (
+			);
+			productName = SparkForDOOHUITests;
+			productReference = 54455B182EE8289E003816F0 /* SparkForDOOHUITests.xctest */;
+			productType = "com.apple.product-type.bundle.ui-testing";
+		};
 		54CE24672E95221600306053 /* SparkForDOOH */ = {
 			isa = PBXNativeTarget;
 			buildConfigurationList = 54CE24762E95221700306053 /* Build configuration list for PBXNativeTarget "SparkForDOOH" */;
@@ -88,6 +181,14 @@
 				LastSwiftUpdateCheck = 1600;
 				LastUpgradeCheck = 1600;
 				TargetAttributes = {
+					54455B042EE82830003816F0 = {
+						CreatedOnToolsVersion = 16.0;
+						TestTargetID = 54CE24672E95221600306053;
+					};
+					54455B172EE8289E003816F0 = {
+						CreatedOnToolsVersion = 16.0;
+						TestTargetID = 54CE24672E95221600306053;
+					};
 					54CE24672E95221600306053 = {
 						CreatedOnToolsVersion = 16.0;
 					};
@@ -110,11 +211,27 @@
 			projectRoot = "";
 			targets = (
 				54CE24672E95221600306053 /* SparkForDOOH */,
+				54455B042EE82830003816F0 /* SparkForDOOHTests */,
+				54455B172EE8289E003816F0 /* SparkForDOOHUITests */,
 			);
 		};
 /* End PBXProject section */
 
 /* Begin PBXResourcesBuildPhase section */
+		54455B032EE82830003816F0 /* Resources */ = {
+			isa = PBXResourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		54455B162EE8289E003816F0 /* Resources */ = {
+			isa = PBXResourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
 		54CE24662E95221600306053 /* Resources */ = {
 			isa = PBXResourcesBuildPhase;
 			buildActionMask = 2147483647;
@@ -125,6 +242,20 @@
 /* End PBXResourcesBuildPhase section */
 
 /* Begin PBXSourcesBuildPhase section */
+		54455B012EE82830003816F0 /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		54455B142EE8289E003816F0 /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
 		54CE24642E95221600306053 /* Sources */ = {
 			isa = PBXSourcesBuildPhase;
 			buildActionMask = 2147483647;
@@ -134,7 +265,86 @@
 		};
 /* End PBXSourcesBuildPhase section */
 
+/* Begin PBXTargetDependency section */
+		54455B0A2EE82830003816F0 /* PBXTargetDependency */ = {
+			isa = PBXTargetDependency;
+			target = 54CE24672E95221600306053 /* SparkForDOOH */;
+			targetProxy = 54455B092EE82830003816F0 /* PBXContainerItemProxy */;
+		};
+		54455B1F2EE8289E003816F0 /* PBXTargetDependency */ = {
+			isa = PBXTargetDependency;
+			target = 54CE24672E95221600306053 /* SparkForDOOH */;
+			targetProxy = 54455B1E2EE8289E003816F0 /* PBXContainerItemProxy */;
+		};
+/* End PBXTargetDependency section */
+
 /* Begin XCBuildConfiguration section */
+		54455B0C2EE82830003816F0 /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				BUNDLE_LOADER = "$(TEST_HOST)";
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 1;
+				GENERATE_INFOPLIST_FILE = YES;
+				MARKETING_VERSION = 1.0;
+				PRODUCT_BUNDLE_IDENTIFIER = com.doceree.testapp.TestApp.SparkForDOOHTests;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SWIFT_EMIT_LOC_STRINGS = NO;
+				SWIFT_VERSION = 5.0;
+				TARGETED_DEVICE_FAMILY = 3;
+				TEST_HOST = "$(BUILT_PRODUCTS_DIR)/SparkForDOOH.app/$(BUNDLE_EXECUTABLE_FOLDER_PATH)/SparkForDOOH";
+			};
+			name = Debug;
+		};
+		54455B0D2EE82830003816F0 /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				BUNDLE_LOADER = "$(TEST_HOST)";
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 1;
+				GENERATE_INFOPLIST_FILE = YES;
+				MARKETING_VERSION = 1.0;
+				PRODUCT_BUNDLE_IDENTIFIER = com.doceree.testapp.TestApp.SparkForDOOHTests;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SWIFT_EMIT_LOC_STRINGS = NO;
+				SWIFT_VERSION = 5.0;
+				TARGETED_DEVICE_FAMILY = 3;
+				TEST_HOST = "$(BUILT_PRODUCTS_DIR)/SparkForDOOH.app/$(BUNDLE_EXECUTABLE_FOLDER_PATH)/SparkForDOOH";
+			};
+			name = Release;
+		};
+		54455B212EE8289E003816F0 /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 1;
+				GENERATE_INFOPLIST_FILE = YES;
+				MARKETING_VERSION = 1.0;
+				PRODUCT_BUNDLE_IDENTIFIER = com.doceree.testapp.TestApp.SparkForDOOHUITests;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SWIFT_EMIT_LOC_STRINGS = NO;
+				SWIFT_VERSION = 5.0;
+				TARGETED_DEVICE_FAMILY = 3;
+				TEST_TARGET_NAME = SparkForDOOH;
+			};
+			name = Debug;
+		};
+		54455B222EE8289E003816F0 /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 1;
+				GENERATE_INFOPLIST_FILE = YES;
+				MARKETING_VERSION = 1.0;
+				PRODUCT_BUNDLE_IDENTIFIER = com.doceree.testapp.TestApp.SparkForDOOHUITests;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SWIFT_EMIT_LOC_STRINGS = NO;
+				SWIFT_VERSION = 5.0;
+				TARGETED_DEVICE_FAMILY = 3;
+				TEST_TARGET_NAME = SparkForDOOH;
+			};
+			name = Release;
+		};
 		54CE24742E95221700306053 /* Debug */ = {
 			isa = XCBuildConfiguration;
 			buildSettings = {
@@ -319,6 +529,24 @@
 /* End XCBuildConfiguration section */
 
 /* Begin XCConfigurationList section */
+		54455B0B2EE82830003816F0 /* Build configuration list for PBXNativeTarget "SparkForDOOHTests" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				54455B0C2EE82830003816F0 /* Debug */,
+				54455B0D2EE82830003816F0 /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Release;
+		};
+		54455B202EE8289E003816F0 /* Build configuration list for PBXNativeTarget "SparkForDOOHUITests" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				54455B212EE8289E003816F0 /* Debug */,
+				54455B222EE8289E003816F0 /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Release;
+		};
 		54CE24632E95221600306053 /* Build configuration list for PBXProject "SparkForDOOH" */ = {
 			isa = XCConfigurationList;
 			buildConfigurations = (
