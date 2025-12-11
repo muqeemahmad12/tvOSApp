@@ -6,6 +6,10 @@
 	objectVersion = 77;
 	objects = {
 
+/* Begin PBXBuildFile section */
+		54455BF02EE9645A003816F0 /* Sentry in Frameworks */ = {isa = PBXBuildFile; productRef = 54455BEF2EE9645A003816F0 /* Sentry */; };
+/* End PBXBuildFile section */
+
 /* Begin PBXContainerItemProxy section */
 		54455B092EE82830003816F0 /* PBXContainerItemProxy */ = {
 			isa = PBXContainerItemProxy;
@@ -29,6 +33,16 @@
 		54CE24682E95221600306053 /* SparkForDOOH.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = SparkForDOOH.app; sourceTree = BUILT_PRODUCTS_DIR; };
 /* End PBXFileReference section */
 
+/* Begin PBXFileSystemSynchronizedBuildFileExceptionSet section */
+		54455B2E2EE95B77003816F0 /* Exceptions for "SparkForDOOHUITests" folder in "SparkForDOOHUITests" target */ = {
+			isa = PBXFileSystemSynchronizedBuildFileExceptionSet;
+			membershipExceptions = (
+				Info.plist,
+			);
+			target = 54455B172EE8289E003816F0 /* SparkForDOOHUITests */;
+		};
+/* End PBXFileSystemSynchronizedBuildFileExceptionSet section */
+
 /* Begin PBXFileSystemSynchronizedRootGroup section */
 		54455B062EE82830003816F0 /* SparkForDOOHTests */ = {
 			isa = PBXFileSystemSynchronizedRootGroup;
@@ -37,6 +51,9 @@
 		};
 		54455B192EE8289E003816F0 /* SparkForDOOHUITests */ = {
 			isa = PBXFileSystemSynchronizedRootGroup;
+			exceptions = (
+				54455B2E2EE95B77003816F0 /* Exceptions for "SparkForDOOHUITests" folder in "SparkForDOOHUITests" target */,
+			);
 			path = SparkForDOOHUITests;
 			sourceTree = "<group>";
 		};
@@ -66,6 +83,7 @@
 			isa = PBXFrameworksBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				54455BF02EE9645A003816F0 /* Sentry in Frameworks */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -166,6 +184,7 @@
 			);
 			name = SparkForDOOH;
 			packageProductDependencies = (
+				54455BEF2EE9645A003816F0 /* Sentry */,
 			);
 			productName = SparkForDOOH;
 			productReference = 54CE24682E95221600306053 /* SparkForDOOH.app */;
@@ -204,6 +223,7 @@
 			mainGroup = 54CE245F2E95221600306053;
 			minimizedProjectReferenceProxies = 1;
 			packageReferences = (
+				54455B2C2EE9556B003816F0 /* XCRemoteSwiftPackageReference "sentry-cocoa" */,
 			);
 			preferredProjectObjectVersion = 77;
 			productRefGroup = 54CE24692E95221600306053 /* Products */;
@@ -319,6 +339,7 @@
 				CODE_SIGN_STYLE = Automatic;
 				CURRENT_PROJECT_VERSION = 1;
 				GENERATE_INFOPLIST_FILE = YES;
+				INFOPLIST_FILE = SparkForDOOHUITests/Info.plist;
 				MARKETING_VERSION = 1.0;
 				PRODUCT_BUNDLE_IDENTIFIER = com.doceree.testapp.TestApp.SparkForDOOHUITests;
 				PRODUCT_NAME = "$(TARGET_NAME)";
@@ -335,6 +356,7 @@
 				CODE_SIGN_STYLE = Automatic;
 				CURRENT_PROJECT_VERSION = 1;
 				GENERATE_INFOPLIST_FILE = YES;
+				INFOPLIST_FILE = SparkForDOOHUITests/Info.plist;
 				MARKETING_VERSION = 1.0;
 				PRODUCT_BUNDLE_IDENTIFIER = com.doceree.testapp.TestApp.SparkForDOOHUITests;
 				PRODUCT_NAME = "$(TARGET_NAME)";
@@ -479,6 +501,8 @@
 				FRAMEWORK_SEARCH_PATHS = "$(inherited)";
 				GENERATE_INFOPLIST_FILE = YES;
 				INFOPLIST_KEY_CFBundleDisplayName = "Spark for DOOH";
+				INFOPLIST_KEY_SENTRY_DSN = "https://c353fdf8cb6dc0e392e953bd771f6260@o4510509371228160.ingest.us.sentry.io/4510509381582848";
+				INFOPLIST_KEY_SENTRY_ENVIRONMENT = Dev;
 				INFOPLIST_KEY_UILaunchScreen_Generation = YES;
 				INFOPLIST_KEY_UIUserInterfaceStyle = Automatic;
 				LD_RUNPATH_SEARCH_PATHS = (
@@ -510,6 +534,8 @@
 				FRAMEWORK_SEARCH_PATHS = "$(inherited)";
 				GENERATE_INFOPLIST_FILE = YES;
 				INFOPLIST_KEY_CFBundleDisplayName = "Spark for DOOH";
+				INFOPLIST_KEY_SENTRY_DSN = "https://c353fdf8cb6dc0e392e953bd771f6260@o4510509371228160.ingest.us.sentry.io/4510509381582848";
+				INFOPLIST_KEY_SENTRY_ENVIRONMENT = Prod;
 				INFOPLIST_KEY_UILaunchScreen_Generation = YES;
 				INFOPLIST_KEY_UIUserInterfaceStyle = Automatic;
 				LD_RUNPATH_SEARCH_PATHS = (
@@ -566,6 +592,25 @@
 			defaultConfigurationName = Release;
 		};
 /* End XCConfigurationList section */
+
+/* Begin XCRemoteSwiftPackageReference section */
+		54455B2C2EE9556B003816F0 /* XCRemoteSwiftPackageReference "sentry-cocoa" */ = {
+			isa = XCRemoteSwiftPackageReference;
+			repositoryURL = "https://github.com/getsentry/sentry-cocoa.git";
+			requirement = {
+				kind = upToNextMajorVersion;
+				minimumVersion = 9.0.0;
+			};
+		};
+/* End XCRemoteSwiftPackageReference section */
+
+/* Begin XCSwiftPackageProductDependency section */
+		54455BEF2EE9645A003816F0 /* Sentry */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = 54455B2C2EE9556B003816F0 /* XCRemoteSwiftPackageReference "sentry-cocoa" */;
+			productName = Sentry;
+		};
+/* End XCSwiftPackageProductDependency section */
 	};
 	rootObject = 54CE24602E95221600306053 /* Project object */;
 }

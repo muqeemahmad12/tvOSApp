@@ -11,6 +11,9 @@ final class FileManagerHelper {
     static let shared = FileManagerHelper()
     private let fileManager = FileManager.default
     
+    /// Directories to preserve when clearing caches (e.g. Sentry crash reports).
+    private let protectedDirectoryNames: Set<String> = ["io.sentry"]
+
     // MARK: - Clear Files
     func clearDirectory(_ directory: FileManager.SearchPathDirectory) {
         guard let dirURL = fileManager.urls(for: directory, in: .userDomainMask).first else { return }
@@ -18,6 +21,11 @@ final class FileManagerHelper {
         do {
             let fileURLs = try fileManager.contentsOfDirectory(at: dirURL, includingPropertiesForKeys: nil)
             for url in fileURLs {
+                // Skip protected directories (e.g. Sentry crash data)
+                if protectedDirectoryNames.contains(url.lastPathComponent) {
+                    print("⏭️ Skipping protected directory: \(url.lastPathComponent)")
+                    continue
+                }
                 try fileManager.removeItem(at: url)
             }
             print("✅ Cleared files in \(directory)")
