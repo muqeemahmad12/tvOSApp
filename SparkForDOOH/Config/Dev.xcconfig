@@ -1,0 +1,19 @@
+//
+//  Dev.xcconfig
+//  SparkForDOOH
+//
+//  Development environment configuration.
+//
+
+#include "Base.xcconfig"
+
+// Environment name
+ENVIRONMENT = Dev
+
+// API Base URLs - Development
+DRS_BASE_URL = https://dev-drs-service.doceree.com
+ACTIVATION_BASE_URL = https://dev-keen.doceree.com
+
+// Bundle ID suffix for Dev builds
+PRODUCT_BUNDLE_IDENTIFIER = $(inherited).dev
+

@@ -25,6 +25,13 @@ struct RootView: View {
                 AdPlayerView(listVM: adListVM)
             }
         }
+        .onAppear {
+            // If already activated (from previous launch), fetch ads immediately
+            if appVM.phase == .playing {
+                print("🚀 Already activated - fetching ads immediately")
+                adListVM.fetchAds(screenId: AppConfig.current.screenId, reqNum: 1)
+            }
+        }
     }
 }
 

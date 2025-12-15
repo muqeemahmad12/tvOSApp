@@ -23,20 +23,20 @@ final class ActivationAPI {
         req.httpBody = try JSONEncoder().encode(payload)
 
         do {
-            let (data, resp) = try await URLSession.shared.data(for: req)
+        let (data, resp) = try await URLSession.shared.data(for: req)
 
-            guard let http = resp as? HTTPURLResponse,
-                  (200...299).contains(http.statusCode) else {
+        guard let http = resp as? HTTPURLResponse,
+              (200...299).contains(http.statusCode) else {
                 throw AppError.invalidResponse
-            }
+        }
 
-            let decoded = try JSONDecoder().decode(ActivationResponse.self, from: data)
+        let decoded = try JSONDecoder().decode(ActivationResponse.self, from: data)
 
-            guard decoded.code == 200, let activation = decoded.data else {
+        guard decoded.code == 200, let activation = decoded.data else {
                 throw AppError.server(message: decoded.message)
-            }
-            print("activation: ", activation)
-            return activation
+        }
+        print("activation: ", activation)
+        return activation
         } catch let decodingError as DecodingError {
             print("❌ Activation decoding error: \(decodingError)")
             throw AppError.decoding

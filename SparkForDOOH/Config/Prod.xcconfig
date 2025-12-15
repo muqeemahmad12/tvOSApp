@@ -1,0 +1,19 @@
+//
+//  Prod.xcconfig
+//  SparkForDOOH
+//
+//  Production environment configuration.
+//
+
+#include "Base.xcconfig"
+
+// Environment name
+ENVIRONMENT = Prod
+
+// API Base URLs - Production
+DRS_BASE_URL = https://drs-service.doceree.com
+ACTIVATION_BASE_URL = https://keen.doceree.com
+
+// Production uses base bundle ID (no suffix)
+// PRODUCT_BUNDLE_IDENTIFIER = $(inherited)
+

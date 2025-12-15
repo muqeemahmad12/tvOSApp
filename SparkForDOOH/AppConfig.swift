@@ -8,11 +8,18 @@
 import Foundation
 
 /// Centralised configuration for environment-specific values (URLs, screenId, timing).
-/// Values are primarily sourced from `Info.plist` / build settings and fall back
-/// to sensible QA defaults when not provided.
+/// Values are primarily sourced from `Info.plist` / build settings (via .xcconfig files)
+/// and fall back to sensible QA defaults when not provided.
+///
+/// To configure for different environments:
+/// 1. Set the xcconfig file in Xcode project settings (Dev.xcconfig, QA.xcconfig, Prod.xcconfig)
+/// 2. Or create separate build schemes for each environment
 struct AppConfig {
     static let current = AppConfig()
 
+    /// Current environment name (Dev, QA, Prod).
+    let environment: String
+    
     /// Base URL for DRS / playlist APIs.
     let drsBaseURL: URL
 
@@ -21,6 +28,9 @@ struct AppConfig {
 
     /// Screen identifier used to fetch playlists for this device.
     let screenId: String
+    
+    /// Sentry DSN for crash reporting.
+    let sentryDSN: String
 
     /// Interval (seconds) after which the playlist auto-sync repeats.
     let playlistRepeatInterval: TimeInterval
@@ -33,29 +43,43 @@ struct AppConfig {
     let activationAutoAdvanceForDebug: Bool
 
     init(
+        environment: String? = nil,
         drsBaseURL: URL? = nil,
         activationBaseURL: URL? = nil,
         screenId: String? = nil,
+        sentryDSN: String? = nil,
         playlistRepeatInterval: TimeInterval = 2 * 60,
         activationTestTransitionDelay: TimeInterval = 10,
         activationAutoAdvanceForDebug: Bool = false
     ) {
-        // Prefer values injected via Info.plist / build settings, with sensible fallbacks.
+        // Environment name from xcconfig (defaults to QA)
+        self.environment = environment
+            ?? AppConfig.stringFromInfoPlist(key: "ENVIRONMENT")
+            ?? "QA"
+        
+        // Prefer values injected via Info.plist / build settings, with QA fallbacks.
         self.drsBaseURL = drsBaseURL
             ?? AppConfig.urlFromInfoPlist(key: "DRS_BASE_URL")
             ?? URL(string: "https://qa-drs-service.doceree.com")!
 
         self.activationBaseURL = activationBaseURL
             ?? AppConfig.urlFromInfoPlist(key: "ACTIVATION_BASE_URL")
-            ?? URL(string: "https://dev-keen.doceree.com")!
+            ?? URL(string: "https://qa-keen.doceree.com")!
 
         self.screenId = screenId
             ?? AppConfig.stringFromInfoPlist(key: "SCREEN_ID")
             ?? "174"
+        
+        self.sentryDSN = sentryDSN
+            ?? AppConfig.stringFromInfoPlist(key: "SENTRY_DSN")
+            ?? ""
 
         self.playlistRepeatInterval = playlistRepeatInterval
         self.activationTestTransitionDelay = activationTestTransitionDelay
         self.activationAutoAdvanceForDebug = activationAutoAdvanceForDebug
+        
+        // Log current configuration
+        print("📋 AppConfig loaded: environment=\(self.environment), drsBaseURL=\(self.drsBaseURL), activationBaseURL=\(self.activationBaseURL)")
     }
 
     // MARK: - Helpers

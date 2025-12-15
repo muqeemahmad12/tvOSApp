@@ -18,18 +18,27 @@ final class ActivationViewModel: ObservableObject {
     @Published var qrURL = ""
     @Published var errorMessage: String?
     @Published var isLoading = false
+    @Published var isActivated = false  // Dedicated flag for activation complete
 
     func activateDevice() {
         isLoading = true
         errorMessage = nil
+        isActivated = false
 
         Task {
             do {
                 let payload = buildActivationPayload()
 
                 let result = try await ActivationAPI.shared.requestActivation(payload: payload)
-
+                
                 handleActivationResponse(result)
+                
+                // Check if already activated from initial request
+                if checkIfActivated(result.status) {
+                    isActivated = true
+                    isLoading = false
+                    return
+                }
 
                 // Start polling separately
                 pollActivation()
@@ -46,12 +55,25 @@ final class ActivationViewModel: ObservableObject {
             do {
                 let data = try await ActivationPollAPI.shared.pollUntilActivated(deviceCode: deviceCode)
                 activationStatus = data.status
+                print("📡 Poll returned status: \(data.status)")
+                
+                // Set activation flag when status is ACTIVE
+                if checkIfActivated(data.status) {
+                    // Save activation to persist across app launches
+                    AppRootViewModel.saveActivation(secureKey: data.secureKey, deviceCode: deviceCode)
+                    isActivated = true
+                }
             } catch {
                 let appError = AppError.from(error)
                 self.errorMessage = appError.localizedDescription
             }
             self.isLoading = false
         }
+    }
+    
+    private func checkIfActivated(_ status: String) -> Bool {
+        let normalized = status.uppercased()
+        return normalized == "ACTIVE" || normalized == "ACTIVATED"
     }
 
     private func buildActivationPayload() -> ActivationRequest {

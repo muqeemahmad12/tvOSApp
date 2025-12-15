@@ -1,0 +1,14 @@
+//
+//  QA.xcconfig
+//  SparkForDOOH
+//
+//  QA environment configuration (default).
+//  Inherits all values from Base.xcconfig which is already configured for QA.
+//
+
+#include "Base.xcconfig"
+
+// QA uses base settings (no overrides needed)
+// Bundle ID suffix for QA builds (optional - remove if you want same bundle ID)
+// PRODUCT_BUNDLE_IDENTIFIER = $(inherited).qa
+

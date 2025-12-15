@@ -28,7 +28,7 @@ final class AdPlaylistViewModel: ObservableObject {
                     delaySeconds: 3
                 ) {
                     try await APIService.shared.fetchItemSeqInfo(screenId: screenId,
-                                                                 reqNum: reqNum)
+                                                                            reqNum: reqNum)
                 }
 
                 let groups = response.groupedAds

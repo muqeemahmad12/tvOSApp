@@ -32,21 +32,14 @@ struct ActivationView: View {
             }
         }
         .onAppear {
-            // For testing: fire activation flow, but always advance after configured delay.
             vm.activateDevice()
-            let delay = AppConfig.current.activationTestTransitionDelay
-            DispatchQueue.main.asyncAfter(deadline: .now() + delay) {
+        }
+        .onChange(of: vm.isActivated) { activated in
+            if activated {
+                print("✅ Device activated - transitioning to player")
                 onActivated()
             }
         }
-        // MARK: - Production flow (uncomment when ready)
-//        .onChange(of: vm.activationStatus) { status in
-//            // Adjust this condition to match the final "activated" status from your backend.
-//            let normalized = status.uppercased()
-//            if normalized == "ACTIVE" || normalized == "ACTIVATED" {
-//                onActivated()
-//            }
-//        }
     }
 }
 

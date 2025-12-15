@@ -23,21 +23,21 @@ final class ActivationPollAPI {
         req.httpBody = try JSONEncoder().encode(["deviceCode": deviceCode])
 
         do {
-            let (data, resp) = try await URLSession.shared.data(for: req)
+        let (data, resp) = try await URLSession.shared.data(for: req)
 
-            guard let http = resp as? HTTPURLResponse,
-                  (200...299).contains(http.statusCode) else {
+        guard let http = resp as? HTTPURLResponse,
+              (200...299).contains(http.statusCode) else {
                 throw AppError.invalidResponse
-            }
+        }
 
-            let decoded = try JSONDecoder().decode(ActivationPollResponse.self, from: data)
+        let decoded = try JSONDecoder().decode(ActivationPollResponse.self, from: data)
 
-            guard decoded.code == 200, let pollData = decoded.data else {
+        guard decoded.code == 200, let pollData = decoded.data else {
                 throw AppError.server(message: decoded.message)
-            }
-
-            print("pollData: ", pollData)
-            return pollData
+        }
+        
+        print("pollData: ", pollData)
+        return pollData
         } catch let decodingError as DecodingError {
             print("❌ Activation poll decoding error: \(decodingError)")
             throw AppError.decoding
@@ -58,11 +58,12 @@ final class ActivationPollAPI {
             attempt += 1
 
             do {
-                let result = try await pollOnce(deviceCode: deviceCode)
-
-                if result.status.uppercased() == "ACTIVATED" {
-                    return result
-                }
+            let result = try await pollOnce(deviceCode: deviceCode)
+            let status = result.status.uppercased()
+            
+            if status == "ACTIVE" || status == "ACTIVATED" {
+                return result
+            }
             } catch {
                 // For polling we treat transient failures as retryable and keep trying
                 print("⚠️ Polling attempt \(attempt) failed: \(error)")
