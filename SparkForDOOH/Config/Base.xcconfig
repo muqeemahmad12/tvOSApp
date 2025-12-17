@@ -15,6 +15,7 @@ ENVIRONMENT = QA
 // Default API Base URLs (QA)
 DRS_BASE_URL = https://qa-drs-service.doceree.com
 ACTIVATION_BASE_URL = https://qa-keen.doceree.com
+SPARK_PORTAL_URL = https://qa-spark.doceree.com
 
 // Default Screen ID (can be overridden per environment)
 SCREEN_ID = 174

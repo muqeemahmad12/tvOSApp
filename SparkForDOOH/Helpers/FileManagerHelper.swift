@@ -11,8 +11,15 @@ final class FileManagerHelper {
     static let shared = FileManagerHelper()
     private let fileManager = FileManager.default
     
-    /// Directories to preserve when clearing caches (e.g. Sentry crash reports).
-    private let protectedDirectoryNames: Set<String> = ["io.sentry"]
+    /// Directories to preserve when clearing caches.
+    /// - io.sentry: Sentry crash reports
+    /// - AdsCache: Downloaded ad assets for playback
+    /// - com.doceree.DocereeiOSMainNew: SQLite cache (deleting while in use causes errors)
+    private let protectedDirectoryNames: Set<String> = [
+        "io.sentry",
+        "AdsCache",
+        "com.doceree.DocereeiOSMainNew"
+    ]
 
     // MARK: - Clear Files
     func clearDirectory(_ directory: FileManager.SearchPathDirectory) {

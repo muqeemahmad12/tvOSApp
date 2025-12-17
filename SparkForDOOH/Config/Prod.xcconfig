@@ -13,6 +13,7 @@ ENVIRONMENT = Prod
 // API Base URLs - Production
 DRS_BASE_URL = https://drs-service.doceree.com
 ACTIVATION_BASE_URL = https://keen.doceree.com
+SPARK_PORTAL_URL = https://spark.doceree.com
 
 // Production uses base bundle ID (no suffix)
 // PRODUCT_BUNDLE_IDENTIFIER = $(inherited)

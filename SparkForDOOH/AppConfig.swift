@@ -25,6 +25,9 @@ struct AppConfig {
 
     /// Base URL for activation / polling APIs.
     let activationBaseURL: URL
+    
+    /// Base URL for Spark portal (QR code / activation website).
+    let sparkPortalURL: URL
 
     /// Screen identifier used to fetch playlists for this device.
     let screenId: String
@@ -46,6 +49,7 @@ struct AppConfig {
         environment: String? = nil,
         drsBaseURL: URL? = nil,
         activationBaseURL: URL? = nil,
+        sparkPortalURL: URL? = nil,
         screenId: String? = nil,
         sentryDSN: String? = nil,
         playlistRepeatInterval: TimeInterval = 2 * 60,
@@ -65,6 +69,10 @@ struct AppConfig {
         self.activationBaseURL = activationBaseURL
             ?? AppConfig.urlFromInfoPlist(key: "ACTIVATION_BASE_URL")
             ?? URL(string: "https://qa-keen.doceree.com")!
+        
+        self.sparkPortalURL = sparkPortalURL
+            ?? AppConfig.urlFromInfoPlist(key: "SPARK_PORTAL_URL")
+            ?? URL(string: "https://qa-spark.doceree.com")!
 
         self.screenId = screenId
             ?? AppConfig.stringFromInfoPlist(key: "SCREEN_ID")
@@ -79,7 +87,7 @@ struct AppConfig {
         self.activationAutoAdvanceForDebug = activationAutoAdvanceForDebug
         
         // Log current configuration
-        print("📋 AppConfig loaded: environment=\(self.environment), drsBaseURL=\(self.drsBaseURL), activationBaseURL=\(self.activationBaseURL)")
+        print("📋 AppConfig loaded: environment=\(self.environment), drsBaseURL=\(self.drsBaseURL), activationBaseURL=\(self.activationBaseURL), sparkPortalURL=\(self.sparkPortalURL)")
     }
 
     // MARK: - Helpers

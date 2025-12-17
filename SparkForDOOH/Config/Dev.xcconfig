@@ -13,6 +13,7 @@ ENVIRONMENT = Dev
 // API Base URLs - Development
 DRS_BASE_URL = https://dev-drs-service.doceree.com
 ACTIVATION_BASE_URL = https://dev-keen.doceree.com
+SPARK_PORTAL_URL = https://dev-spark.doceree.com
 
 // Bundle ID suffix for Dev builds
 PRODUCT_BUNDLE_IDENTIFIER = $(inherited).dev

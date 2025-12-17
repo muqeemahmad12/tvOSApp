@@ -106,7 +106,8 @@ final class ActivationViewModel: ObservableObject {
     func generateQRUrl() -> String {
         guard !activationCode.isEmpty else { return "" }
         let cb = generateCB()
-        return "https://spark.doceree.com/?cb=\(cb)&code=\(activationCode)"
+        let baseURL = AppConfig.current.sparkPortalURL.absoluteString
+        return "\(baseURL)/?cb=\(cb)&code=\(activationCode)"
     }
     
     func generateCB() -> String {
