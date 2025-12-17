@@ -134,8 +134,18 @@ private extension AdPlayerViewModel {
         let fileName = remoteURL.lastPathComponent.lowercased()
         let destination = adsCacheDir.appendingPathComponent(fileName)
 
-        // If cached already → return
+        // If cached already on disk → load into memory and return
         if fileManager.fileExists(atPath: destination.path) {
+            // Still need to cache images in memory!
+            if fileName.hasSuffix(".jpg") || fileName.hasSuffix(".png") || fileName.hasSuffix(".jpeg") {
+                if let data = try? Data(contentsOf: destination),
+                   let img = UIImage(data: data) {
+                    await MainActor.run {
+                        storeImage(img, forKey: remoteURLString)
+                    }
+                    print("🖼️ Loaded cached image into memory:", fileName)
+                }
+            }
             return destination
         }
 
@@ -146,7 +156,7 @@ private extension AdPlayerViewModel {
             print("💾 Saved:", fileName)
 
             // Decode & cache images immediately
-            if fileName.hasSuffix(".jpg") || fileName.hasSuffix(".png"),
+            if fileName.hasSuffix(".jpg") || fileName.hasSuffix(".png") || fileName.hasSuffix(".jpeg"),
                let img = UIImage(data: data) {
                 await MainActor.run {
                     storeImage(img, forKey: remoteURLString)
@@ -254,11 +264,18 @@ private extension AdPlayerViewModel {
         // 1. Try video first ONLY if it's first in list
         if let first = ads.first,
            first.assettype.lowercased() == "video" {
+            // Track impression for video
+            trackImpression(for: first)
             playVideo(first)
             return
         }
 
         // 2. If no leading video → show images for group duration
+        // Track impressions for all images in the group
+        for ad in ads where ad.assettype.lowercased() == "image" {
+            trackImpression(for: ad)
+        }
+        
         startGroupTimer()
 
         // Preload images into memory
@@ -285,9 +302,28 @@ private extension AdPlayerViewModel {
             queue: .main
         ) { [weak self] _ in
             Task { @MainActor in
+                // Track video completion
+                self?.trackCompletion(for: ad)
                 self?.transitionToNextItem()
             }
         }
+    }
+    
+    // MARK: - Impression Tracking
+    
+    func trackImpression(for ad: AdItemModel) {
+        guard !disablePreloadingAndValidation else { return }
+        ImpressionTrackingAPI.shared.trackImpression(ad: ad, screenId: screenId)
+    }
+    
+    func trackCompletion(for ad: AdItemModel) {
+        guard !disablePreloadingAndValidation else { return }
+        ImpressionTrackingAPI.shared.trackCompletion(ad: ad, screenId: screenId)
+    }
+    
+    func trackImageViewComplete(for ad: AdItemModel, duration: Int) {
+        guard !disablePreloadingAndValidation else { return }
+        ImpressionTrackingAPI.shared.trackViewComplete(ad: ad, screenId: screenId, durationSeconds: duration)
     }
 
     func isVideoPlayable(url: URL) async -> Bool {
@@ -329,11 +365,18 @@ private extension AdPlayerViewModel {
         }
     }
 
-    /// Fallback timer if no video.
+    /// Fallback timer if no video (10 seconds for image groups).
     func startGroupTimer() {
         timer?.invalidate()
-        timer = Timer.scheduledTimer(withTimeInterval: 10, repeats: false) { [weak self] _ in
+        let duration = 10
+        timer = Timer.scheduledTimer(withTimeInterval: TimeInterval(duration), repeats: false) { [weak self] _ in
             Task { @MainActor in
+                // Track view complete for all images in the group
+                if let group = self?.currentGroup {
+                    for ad in group.ii where ad.assettype.lowercased() == "image" {
+                        self?.trackImageViewComplete(for: ad, duration: duration)
+                    }
+                }
                 self?.transitionToNextItem()
             }
         }
