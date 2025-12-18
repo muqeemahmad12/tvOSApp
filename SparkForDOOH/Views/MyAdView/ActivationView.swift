@@ -6,6 +6,7 @@
 //
 
 import SwiftUI
+import UIKit
 
 struct ActivationView: View {
     /// Called when activation is considered complete (e.g. backend marks device as ACTIVE).
@@ -32,6 +33,10 @@ struct ActivationView: View {
             }
         }
         .onAppear {
+            // Prevent screensaver/sleep while waiting for activation
+            UIApplication.shared.isIdleTimerDisabled = true
+            print("🔒 Idle timer disabled during activation")
+            
             vm.activateDevice()
         }
         .onChange(of: vm.isActivated) { activated in

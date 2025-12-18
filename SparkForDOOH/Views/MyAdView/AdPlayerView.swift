@@ -7,6 +7,7 @@
 
 import SwiftUI
 import AVKit
+import UIKit
 
 struct AdPlayerView: View {
     @StateObject private var viewModel = AdPlayerViewModel()
@@ -109,6 +110,10 @@ struct AdPlayerView: View {
             }
         }
         .onAppear {
+            // Prevent screensaver/sleep while playing ads
+            UIApplication.shared.isIdleTimerDisabled = true
+            print("🔒 Idle timer disabled - preventing screensaver")
+            
             // Load ticker/logo from saved activation data
             tickerMessage = AppRootViewModel.getSavedTickerMessage()
             logoUrl = AppRootViewModel.getSavedLogoUrl()
@@ -121,6 +126,10 @@ struct AdPlayerView: View {
             }
         }
         .onDisappear {
+            // Re-enable idle timer when leaving player
+            UIApplication.shared.isIdleTimerDisabled = false
+            print("🔓 Idle timer re-enabled")
+            
             viewModel.stop()
             HeartbeatAPI.shared.stopHeartbeat()
         }
