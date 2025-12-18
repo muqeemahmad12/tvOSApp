@@ -2,29 +2,48 @@
 //  TickerBannerView.swift
 //  SparkForDOOH
 //
-//  Displays scrolling ticker message and optional logo overlay during ad playback.
+//  Displays scrolling ticker message, logo, and time overlay during ad playback.
 //
 
 import SwiftUI
 
 /// Ticker banner overlay that displays at the bottom of the screen during ad playback.
-/// Shows a scrolling ticker message and optional logo.
+/// Shows a scrolling ticker message, optional logo, and current time.
 struct TickerBannerView: View {
     let tickerMessage: String?
     let logoUrl: String?
+    let showTime: Bool
     
     @State private var tickerOffset: CGFloat = 0
     @State private var logoImage: UIImage?
+    @State private var currentTime: String = ""
     
     private let tickerHeight: CGFloat = 60
     private let logoSize: CGFloat = 80
     
+    // Timer for updating clock
+    private let clockTimer = Timer.publish(every: 1, on: .main, in: .common).autoconnect()
+    
+    init(tickerMessage: String?, logoUrl: String?, showTime: Bool = true) {
+        self.tickerMessage = tickerMessage
+        self.logoUrl = logoUrl
+        self.showTime = showTime
+    }
+    
     var body: some View {
         VStack {
-            // Logo in top-right corner
-            if let logoImage = logoImage {
-                HStack {
-                    Spacer()
+            // Top bar: Time (left) and Logo (right)
+            HStack(alignment: .top) {
+                // Time display in top-left
+                if showTime {
+                    TimeDisplayView(currentTime: currentTime)
+                        .padding(20)
+                }
+                
+                Spacer()
+                
+                // Logo in top-right corner
+                if let logoImage = logoImage {
                     Image(uiImage: logoImage)
                         .resizable()
                         .aspectRatio(contentMode: .fit)
@@ -44,10 +63,20 @@ struct TickerBannerView: View {
         }
         .onAppear {
             loadLogo()
+            updateTime()
         }
         .onChange(of: logoUrl) { _ in
             loadLogo()
         }
+        .onReceive(clockTimer) { _ in
+            updateTime()
+        }
+    }
+    
+    private func updateTime() {
+        let formatter = DateFormatter()
+        formatter.dateFormat = "h:mm a"
+        currentTime = formatter.string(from: Date())
     }
     
     private func loadLogo() {
@@ -68,6 +97,24 @@ struct TickerBannerView: View {
                 print("⚠️ Failed to load logo: \(error.localizedDescription)")
             }
         }
+    }
+}
+
+/// Displays current time with a subtle background
+struct TimeDisplayView: View {
+    let currentTime: String
+    
+    var body: some View {
+        Text(currentTime)
+            .font(.system(size: 32, weight: .semibold, design: .rounded))
+            .foregroundColor(.white)
+            .padding(.horizontal, 16)
+            .padding(.vertical, 8)
+            .background(
+                RoundedRectangle(cornerRadius: 10)
+                    .fill(Color.black.opacity(0.6))
+            )
+            .shadow(color: .black.opacity(0.3), radius: 4, x: 0, y: 2)
     }
 }
 

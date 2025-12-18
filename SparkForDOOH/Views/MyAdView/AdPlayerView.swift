@@ -87,17 +87,17 @@ struct AdPlayerView: View {
                         }
                     }
                 }
-//                .animation(.easeInOut(duration: 0.8), value: viewModel.slideOffset)
-//                .offset(x: viewModel.slideOffset)
+                .opacity(viewModel.contentOpacity)  // Crossfade transition
             } else {
                 PlayerLoadingPlaceholderView()
             }
             
-            // MARK: - Ticker/Banner Overlay
+            // MARK: - Ticker/Banner Overlay (with time display)
             if !viewModel.isPreloading {
                 TickerBannerView(
                     tickerMessage: tickerMessage,
-                    logoUrl: logoUrl
+                    logoUrl: logoUrl,
+                    showTime: true  // Can be controlled via config
                 )
             }
         }
@@ -114,6 +114,9 @@ struct AdPlayerView: View {
             UIApplication.shared.isIdleTimerDisabled = true
             print("🔒 Idle timer disabled - preventing screensaver")
             
+            // Configure media session (suppress Now Playing, handle remote)
+            MediaSessionHelper.shared.setupForDOOHPlayback()
+            
             // Load ticker/logo from saved activation data
             tickerMessage = AppRootViewModel.getSavedTickerMessage()
             logoUrl = AppRootViewModel.getSavedLogoUrl()
@@ -129,6 +132,9 @@ struct AdPlayerView: View {
             // Re-enable idle timer when leaving player
             UIApplication.shared.isIdleTimerDisabled = false
             print("🔓 Idle timer re-enabled")
+            
+            // Cleanup media session
+            MediaSessionHelper.shared.cleanup()
             
             viewModel.stop()
             HeartbeatAPI.shared.stopHeartbeat()

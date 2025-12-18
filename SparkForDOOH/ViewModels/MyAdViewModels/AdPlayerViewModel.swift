@@ -21,6 +21,7 @@ final class AdPlayerViewModel: ObservableObject {
     @Published var isPreloading = false
     @Published var preloadProgress: Double = 0.0
     @Published var errorMessage: String?
+    @Published var contentOpacity: Double = 1.0  // For crossfade transitions
 
     // MARK: - Private state
     fileprivate var pendingGroups: [AdSequenceGroup] = []
@@ -303,6 +304,9 @@ private extension AdPlayerViewModel {
 
         activePlayer = AVPlayer(url: localURL)
         activePlayer?.play()
+        
+        // Clear Now Playing info to suppress system UI
+        MediaSessionHelper.shared.clearNowPlayingInfo()
 
         NotificationCenter.default.addObserver(
             forName: .AVPlayerItemDidPlayToEndTime,
@@ -392,26 +396,41 @@ private extension AdPlayerViewModel {
 
     /// Advance to the next group or loop / apply new playlist.
     func transitionToNextItem() {
-        currentIndex += 1
+        // Fade out current content
+        withAnimation(.easeOut(duration: 0.3)) {
+            contentOpacity = 0.0
+        }
+        
+        // After fade out, switch content and fade in
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.3) { [weak self] in
+            guard let self = self else { return }
+            
+            self.currentIndex += 1
 
-        if currentIndex >= groupedAds.count {
-            print("🔁 Loop finished.")
+            if self.currentIndex >= self.groupedAds.count {
+                print("🔁 Loop finished.")
 
-            let now = Date()
-            if now.timeIntervalSince(lastAppliedSync) >= repeatInTime,
-               !pendingGroups.isEmpty {
-                print("📥 Time to apply new playlist — preparing safely…")
-                Task {
-                    await applyPendingPlaylistSafely()
+                let now = Date()
+                if now.timeIntervalSince(self.lastAppliedSync) >= self.repeatInTime,
+                   !self.pendingGroups.isEmpty {
+                    print("📥 Time to apply new playlist — preparing safely…")
+                    Task {
+                        await self.applyPendingPlaylistSafely()
+                    }
+                    return
                 }
-                return
+
+                self.currentIndex = 0
             }
 
-            currentIndex = 0
+            self.slideOffset = 0
+            self.playCurrentGroup()
+            
+            // Fade in new content
+            withAnimation(.easeIn(duration: 0.3)) {
+                self.contentOpacity = 1.0
+            }
         }
-
-        slideOffset = 0
-        playCurrentGroup()
     }
 }
 
