@@ -34,6 +34,9 @@ struct AppConfig {
     
     /// Sentry DSN for crash reporting.
     let sentryDSN: String
+    
+    /// API key for DRS/heartbeat endpoints.
+    let apiKey: String
 
     /// Interval (seconds) after which the playlist auto-sync repeats.
     let playlistRepeatInterval: TimeInterval
@@ -52,6 +55,7 @@ struct AppConfig {
         sparkPortalURL: URL? = nil,
         screenId: String? = nil,
         sentryDSN: String? = nil,
+        apiKey: String? = nil,
         playlistRepeatInterval: TimeInterval = 2 * 60,
         activationTestTransitionDelay: TimeInterval = 10,
         activationAutoAdvanceForDebug: Bool = false
@@ -81,6 +85,10 @@ struct AppConfig {
         self.sentryDSN = sentryDSN
             ?? AppConfig.stringFromInfoPlist(key: "SENTRY_DSN")
             ?? ""
+        
+        self.apiKey = apiKey
+            ?? AppConfig.stringFromInfoPlist(key: "API_KEY")
+            ?? "f0172f77-966b-4be3-aef1-7fd439028a46"  // Default API key
 
         self.playlistRepeatInterval = playlistRepeatInterval
         self.activationTestTransitionDelay = activationTestTransitionDelay

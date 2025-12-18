@@ -27,18 +27,6 @@ final class HeartbeatAPI {
         let code: Int?
         let status: String?
         let message: String?
-        let data: HeartbeatData?
-    }
-    
-    struct HeartbeatData: Codable {
-        let tickerMessage: String?
-        let logoUrl: String?
-        let config: HeartbeatConfig?
-    }
-    
-    struct HeartbeatConfig: Codable {
-        let playlistRefreshInterval: Int?
-        let heartbeatInterval: Int?
     }
     
     /// Heartbeat interval in seconds (60 seconds as per spec)
@@ -113,7 +101,7 @@ final class HeartbeatAPI {
     /// Send a single heartbeat to the backend
     private func sendHeartbeat() async {
         let baseURL = AppConfig.current.activationBaseURL
-        let url = baseURL.appendingPathComponent("api/v1/dooh/heartbeat")
+        let url = baseURL.appendingPathComponent("v1/dooh/device/heartbeat")
         
         let deviceId = await UIDevice.current.identifierForVendor?.uuidString ?? UUID().uuidString
         let secureKey = await AppRootViewModel.getSavedSecureKey() ?? ""
@@ -147,6 +135,7 @@ final class HeartbeatAPI {
             var request = URLRequest(url: url)
             request.httpMethod = "POST"
             request.setValue("application/json", forHTTPHeaderField: "Content-Type")
+            request.setValue(AppConfig.current.apiKey, forHTTPHeaderField: "x-api-key")
             request.httpBody = try JSONSerialization.data(withJSONObject: payload, options: [])
             request.timeoutInterval = 30
             
@@ -158,34 +147,11 @@ final class HeartbeatAPI {
             }
             
             if (200...299).contains(httpResponse.statusCode) {
-                print("💓 Heartbeat sent successfully")
-                
-                // Parse response for updated configuration
-                if let heartbeatResponse = try? JSONDecoder().decode(HeartbeatResponse.self, from: data),
-                   let heartbeatData = heartbeatResponse.data {
-                    
-                    var didUpdate = false
-                    
-                    // Update ticker message if changed
-                    if let tickerMessage = heartbeatData.tickerMessage {
-                        await AppRootViewModel.updateTickerMessage(tickerMessage)
-                        print("📢 Updated ticker message: \(tickerMessage)")
-                        didUpdate = true
-                    }
-                    
-                    // Update logo URL if changed
-                    if let logoUrl = heartbeatData.logoUrl {
-                        await AppRootViewModel.updateLogoUrl(logoUrl)
-                        print("🖼️ Updated logo URL: \(logoUrl)")
-                        didUpdate = true
-                    }
-                    
-                    // Notify UI to refresh ticker/logo
-                    if didUpdate {
-                        await MainActor.run {
-                            NotificationCenter.default.post(name: .tickerUpdated, object: nil)
-                        }
-                    }
+                // Parse and log response
+                if let heartbeatResponse = try? JSONDecoder().decode(HeartbeatResponse.self, from: data) {
+                    print("💓 Heartbeat: \(heartbeatResponse.message ?? "OK")")
+                } else {
+                    print("💓 Heartbeat sent successfully")
                 }
             } else {
                 print("⚠️ Heartbeat failed: HTTP \(httpResponse.statusCode)")
