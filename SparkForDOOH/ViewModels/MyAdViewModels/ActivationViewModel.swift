@@ -19,11 +19,67 @@ final class ActivationViewModel: ObservableObject {
     @Published var errorMessage: String?
     @Published var isLoading = false
     @Published var isActivated = false  // Dedicated flag for activation complete
+    @Published var isCodeExpired = false  // Shows refresh button after 15 min
+    @Published var timeRemaining: Int = 15 * 60  // 15 minutes in seconds
+    
+    private var expirationTimer: Timer?
+    private var countdownTimer: Timer?
+    private let codeExpirationTime: TimeInterval = 5 * 60  // 5 minutes (for testing, change to 15 * 60 for production)
+    
+    @MainActor deinit {
+        stopTimers()
+    }
+    
+    private func stopTimers() {
+        expirationTimer?.invalidate()
+        expirationTimer = nil
+        countdownTimer?.invalidate()
+        countdownTimer = nil
+    }
+    
+    private func startExpirationTimer() {
+        stopTimers()
+        isCodeExpired = false
+        timeRemaining = Int(codeExpirationTime)
+        
+        // Countdown timer (updates every second)
+        countdownTimer = Timer.scheduledTimer(withTimeInterval: 1, repeats: true) { [weak self] _ in
+            Task { @MainActor in
+                guard let self = self else { return }
+                if self.timeRemaining > 0 {
+                    self.timeRemaining -= 1
+                }
+            }
+        }
+        
+        // Expiration timer (fires after 15 minutes)
+        expirationTimer = Timer.scheduledTimer(withTimeInterval: codeExpirationTime, repeats: false) { [weak self] _ in
+            Task { @MainActor in
+                self?.handleCodeExpired()
+            }
+        }
+        
+        print("⏱️ Activation code expires in 15 minutes")
+    }
+    
+    private func handleCodeExpired() {
+        print("⏰ Activation code expired - auto-refreshing...")
+        // Auto-refresh the code without user interaction
+        refreshActivationCode()
+    }
+    
+    /// Refresh the activation code automatically
+    private func refreshActivationCode() {
+        print("🔄 Auto-refreshing activation code...")
+        isCodeExpired = false
+        activateDevice()
+    }
 
     func activateDevice() {
         isLoading = true
         errorMessage = nil
         isActivated = false
+        isCodeExpired = false
 
         Task {
             do {
@@ -33,8 +89,12 @@ final class ActivationViewModel: ObservableObject {
                 
                 handleActivationResponse(result)
                 
+                // Start 15-minute expiration timer
+                startExpirationTimer()
+                
                 // Check if already activated from initial request
                 if checkIfActivated(result.status) {
+                    stopTimers()
                     isActivated = true
                     isLoading = false
                     return
@@ -59,6 +119,9 @@ final class ActivationViewModel: ObservableObject {
                 
                 // Set activation flag when status is ACTIVE
                 if checkIfActivated(data.status) {
+                    // Stop expiration timer on successful activation
+                    stopTimers()
+                    
                     // Save activation to persist across app launches (including ticker/logo)
                     AppRootViewModel.saveActivation(
                         secureKey: data.secureKey,

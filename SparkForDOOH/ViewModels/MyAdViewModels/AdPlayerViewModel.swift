@@ -33,6 +33,11 @@ final class AdPlayerViewModel: ObservableObject {
     fileprivate var screenId: String
     fileprivate var repeatInTime: TimeInterval
     fileprivate var lastAppliedSync: Date = .distantPast
+    
+    // MARK: - Sync failure tracking
+    fileprivate var consecutiveSyncFailures = 0
+    fileprivate let maxSyncFailuresBeforeFallback = 5
+    @Published var isUsingFallbackContent = false
 
     // MARK: - File Manager helpers
     fileprivate var fileManager: FileManager { .default }
@@ -455,10 +460,39 @@ private extension AdPlayerViewModel {
                 print("🔄 Sync data fetched: \(response.groupedAds.count) groups")
                 pendingGroups = response.groupedAds
                 await applyPendingPlaylistSafely()
+                
+                // Reset failure counter on success
+                consecutiveSyncFailures = 0
+                isUsingFallbackContent = false
+                
+                // Update heartbeat with last sync time
+                HeartbeatAPI.shared.updateLastSyncTime()
             } catch {
-                print("❌ Sync failed:", error.localizedDescription)
+                consecutiveSyncFailures += 1
+                print("❌ Sync failed (\(consecutiveSyncFailures)/\(maxSyncFailuresBeforeFallback)):", error.localizedDescription)
+                
+                // Check if we should switch to fallback mode
+                if consecutiveSyncFailures >= maxSyncFailuresBeforeFallback {
+                    handleSyncFailureFallback()
+                }
             }
         }
+    }
+    
+    /// Handle fallback after 5 consecutive sync failures
+    private func handleSyncFailureFallback() {
+        guard !isUsingFallbackContent else { return }
+        
+        isUsingFallbackContent = true
+        print("⚠️ 5 consecutive sync failures - continuing with cached content")
+        
+        // Continue playing cached content - no action needed
+        // The existing playlist will keep looping
+        // Could show a subtle indicator in UI if needed
+        
+        // Log to Sentry for monitoring
+        let error = NSError(domain: "com.sparkfordooh.sync", code: 1, userInfo: [NSLocalizedDescriptionKey: "Sync fallback activated after \(maxSyncFailuresBeforeFallback) failures"])
+        SentryService.shared.capture(error: error)
     }
 
     func applyPendingPlaylistSafely() async {

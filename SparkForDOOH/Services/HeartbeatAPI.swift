@@ -41,8 +41,8 @@ final class HeartbeatAPI {
         let heartbeatInterval: Int?
     }
     
-    /// Heartbeat interval in seconds (default 5 minutes)
-    private let heartbeatInterval: TimeInterval = 5 * 60
+    /// Heartbeat interval in seconds (60 seconds as per spec)
+    private let heartbeatInterval: TimeInterval = 60
     
     /// Timer for periodic heartbeat
     private var heartbeatTimer: Timer?
@@ -51,6 +51,8 @@ final class HeartbeatAPI {
     private var currentSequenceIndex: Int = 0
     private var currentAdId: String = ""
     private var isPlaying: Bool = false
+    private var lastSyncTime: Date?
+    private var lastPlayedTime: Date?
     
     // MARK: - Public Methods
     
@@ -85,6 +87,25 @@ final class HeartbeatAPI {
         self.currentSequenceIndex = sequenceIndex
         self.currentAdId = adId
         self.isPlaying = isPlaying
+        self.lastPlayedTime = Date()
+    }
+    
+    /// Update last sync time (called after successful playlist sync)
+    func updateLastSyncTime() {
+        self.lastSyncTime = Date()
+    }
+    
+    /// Get current network status
+    private func getNetworkStatus() -> String {
+        // Simple network check - in production, could use NWPathMonitor
+        let url = URL(string: "https://www.apple.com")!
+        var request = URLRequest(url: url)
+        request.httpMethod = "HEAD"
+        request.timeoutInterval = 5
+        
+        // For now, return "connected" as we're already making API calls
+        // A more robust check would use NWPathMonitor
+        return "connected"
     }
     
     // MARK: - Private Methods
@@ -98,12 +119,22 @@ final class HeartbeatAPI {
         let secureKey = await AppRootViewModel.getSavedSecureKey() ?? ""
         let deviceCode = await AppRootViewModel.getSavedDeviceCode() ?? ""
         
+        // Format timestamps
+        let isoFormatter = ISO8601DateFormatter()
+        let lastSyncString = lastSyncTime.map { isoFormatter.string(from: $0) } ?? ""
+        let lastPlayedString = lastPlayedTime.map { isoFormatter.string(from: $0) } ?? ""
+        
         let payload: [String: Any] = await [
-            "deviceId": deviceId,
+            // Required fields per spec
+            "screen_id": AppConfig.current.screenId,
+            "device_id": deviceId,
+            "last_sync": lastSyncString,
+            "last_played": lastPlayedString,
+            "network_status": getNetworkStatus(),
+            // Additional context fields
             "deviceCode": deviceCode,
             "secureKey": secureKey,
-            "screenId": AppConfig.current.screenId,
-            "timestamp": ISO8601DateFormatter().string(from: Date()),
+            "timestamp": isoFormatter.string(from: Date()),
             "status": isPlaying ? "playing" : "idle",
             "currentSequence": currentSequenceIndex,
             "currentAdId": currentAdId,

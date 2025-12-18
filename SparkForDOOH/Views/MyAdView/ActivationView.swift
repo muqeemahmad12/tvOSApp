@@ -23,8 +23,12 @@ struct ActivationView: View {
 
                 Spacer()
                 HStack(alignment: .top, spacing: 80) {
-                    ActivationCodeSection(activationCode: vm.activationCode,
-                                          qrURL: vm.qrURL)
+                    ActivationCodeSection(
+                        activationCode: vm.activationCode,
+                        qrURL: vm.qrURL,
+                        timeRemaining: vm.timeRemaining,
+                        isRefreshing: vm.isCodeExpired
+                    )
                     ActivationInstructionsSection()
                     Spacer()
                 }
@@ -62,25 +66,59 @@ private struct ActivationTitle: View {
 private struct ActivationCodeSection: View {
     let activationCode: String
     let qrURL: String
+    let timeRemaining: Int
+    let isRefreshing: Bool
 
     var body: some View {
         VStack(spacing: 40) {
-            QRCodeView(text: qrURL)
-                .frame(width: 450, height: 450)
+            ZStack {
+                QRCodeView(text: qrURL)
+                    .frame(width: 450, height: 450)
+                    .opacity(isRefreshing ? 0.3 : 1.0)
+                
+                // Refreshing overlay (auto-refresh in progress)
+                if isRefreshing {
+                    VStack(spacing: 20) {
+                        ProgressView()
+                            .scaleEffect(2)
+                            .progressViewStyle(CircularProgressViewStyle(tint: Color(hex: "#138bcc")))
+                        
+                        Text("Refreshing code...")
+                            .font(.system(size: 28, weight: .medium))
+                            .foregroundColor(Color(hex: "#505050"))
+                    }
+                }
+            }
+            
             Spacer()
+            
+            // Activation code boxes
             HStack(spacing: 20) {
                 ForEach(Array(activationCode.enumerated()), id: \.offset) { _, char in
                     Text(String(char))
                         .font(.system(size: 60, weight: .semibold))
-                        .foregroundColor(Color(hex: "#505050"))
+                        .foregroundColor(isRefreshing ? Color.gray : Color(hex: "#505050"))
                         .frame(width: 100, height: 100)
                         .background(
                             RoundedRectangle(cornerRadius: 20)
-                                .stroke(Color.gray.opacity(0.6), lineWidth: 4)
+                                .stroke(isRefreshing ? Color.gray.opacity(0.3) : Color.gray.opacity(0.6), lineWidth: 4)
                         )
                 }
             }
+            
+            // Countdown timer (hidden during refresh)
+            if !isRefreshing {
+                Text("Code expires in \(formatTime(timeRemaining))")
+                    .font(.system(size: 22))
+                    .foregroundColor(timeRemaining < 60 ? .red : Color(hex: "#505050"))
+            }
         }
+    }
+    
+    private func formatTime(_ seconds: Int) -> String {
+        let minutes = seconds / 60
+        let secs = seconds % 60
+        return String(format: "%d:%02d", minutes, secs)
     }
 }
 
