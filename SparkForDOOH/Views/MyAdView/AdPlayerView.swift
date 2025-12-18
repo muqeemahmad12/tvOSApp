@@ -12,6 +12,8 @@ struct AdPlayerView: View {
     @StateObject private var viewModel = AdPlayerViewModel()
     @ObservedObject var listVM: AdPlaylistViewModel
     @State private var videoFullScreen = false
+    @State private var tickerMessage: String? = nil
+    @State private var logoUrl: String? = nil
 
     var body: some View {
         ZStack {
@@ -89,6 +91,14 @@ struct AdPlayerView: View {
             } else {
                 PlayerLoadingPlaceholderView()
             }
+            
+            // MARK: - Ticker/Banner Overlay
+            if !viewModel.isPreloading {
+                TickerBannerView(
+                    tickerMessage: tickerMessage,
+                    logoUrl: logoUrl
+                )
+            }
         }
         .ignoresSafeArea() // Ensure the entire player fills the tvOS window
         .accessibilityIdentifier("AdPlayerRootView")
@@ -99,12 +109,25 @@ struct AdPlayerView: View {
             }
         }
         .onAppear {
+            // Load ticker/logo from saved activation data
+            tickerMessage = AppRootViewModel.getSavedTickerMessage()
+            logoUrl = AppRootViewModel.getSavedLogoUrl()
+            
+            // Start heartbeat service
+            HeartbeatAPI.shared.startHeartbeat()
+            
             if !listVM.groupedAds.isEmpty {
                 viewModel.startPlayback(with: listVM.groupedAds)
             }
         }
         .onDisappear {
             viewModel.stop()
+            HeartbeatAPI.shared.stopHeartbeat()
+        }
+        // Listen for ticker/logo updates from heartbeat
+        .onReceive(NotificationCenter.default.publisher(for: .tickerUpdated)) { _ in
+            tickerMessage = AppRootViewModel.getSavedTickerMessage()
+            logoUrl = AppRootViewModel.getSavedLogoUrl()
         }
     }
 }

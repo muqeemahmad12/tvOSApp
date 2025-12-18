@@ -59,8 +59,14 @@ final class ActivationViewModel: ObservableObject {
                 
                 // Set activation flag when status is ACTIVE
                 if checkIfActivated(data.status) {
-                    // Save activation to persist across app launches
-                    AppRootViewModel.saveActivation(secureKey: data.secureKey, deviceCode: deviceCode)
+                    // Save activation to persist across app launches (including ticker/logo)
+                    AppRootViewModel.saveActivation(
+                        secureKey: data.secureKey,
+                        deviceCode: deviceCode,
+                        tickerMessage: data.tickerMessage,
+                        logoUrl: data.logoUrl
+                    )
+                    print("📢 Ticker: \(data.tickerMessage ?? "none"), Logo: \(data.logoUrl ?? "none")")
                     isActivated = true
                 }
             } catch {

@@ -21,6 +21,8 @@ final class AppRootViewModel: ObservableObject {
     private static let isActivatedKey = "com.doceree.sparkfordooh.isActivated"
     private static let secureKeyKey = "com.doceree.sparkfordooh.secureKey"
     private static let deviceCodeKey = "com.doceree.sparkfordooh.deviceCode"
+    private static let tickerMessageKey = "com.doceree.sparkfordooh.tickerMessage"
+    private static let logoUrlKey = "com.doceree.sparkfordooh.logoUrl"
     
     init() {
         // Check if device was previously activated
@@ -40,13 +42,19 @@ final class AppRootViewModel: ObservableObject {
     }
     
     /// Save activation state when device is activated
-    static func saveActivation(secureKey: String?, deviceCode: String?) {
+    static func saveActivation(secureKey: String?, deviceCode: String?, tickerMessage: String? = nil, logoUrl: String? = nil) {
         UserDefaults.standard.set(true, forKey: isActivatedKey)
         if let secureKey = secureKey {
             UserDefaults.standard.set(secureKey, forKey: secureKeyKey)
         }
         if let deviceCode = deviceCode {
             UserDefaults.standard.set(deviceCode, forKey: deviceCodeKey)
+        }
+        if let tickerMessage = tickerMessage, !tickerMessage.isEmpty {
+            UserDefaults.standard.set(tickerMessage, forKey: tickerMessageKey)
+        }
+        if let logoUrl = logoUrl, !logoUrl.isEmpty {
+            UserDefaults.standard.set(logoUrl, forKey: logoUrlKey)
         }
         print("💾 Activation saved to UserDefaults")
     }
@@ -61,11 +69,41 @@ final class AppRootViewModel: ObservableObject {
         return UserDefaults.standard.string(forKey: deviceCodeKey)
     }
     
+    /// Get saved ticker message
+    static func getSavedTickerMessage() -> String? {
+        return UserDefaults.standard.string(forKey: tickerMessageKey)
+    }
+    
+    /// Get saved logo URL
+    static func getSavedLogoUrl() -> String? {
+        return UserDefaults.standard.string(forKey: logoUrlKey)
+    }
+    
+    /// Update ticker message (can be updated during heartbeat)
+    static func updateTickerMessage(_ message: String?) {
+        if let message = message, !message.isEmpty {
+            UserDefaults.standard.set(message, forKey: tickerMessageKey)
+        } else {
+            UserDefaults.standard.removeObject(forKey: tickerMessageKey)
+        }
+    }
+    
+    /// Update logo URL (can be updated during heartbeat)
+    static func updateLogoUrl(_ url: String?) {
+        if let url = url, !url.isEmpty {
+            UserDefaults.standard.set(url, forKey: logoUrlKey)
+        } else {
+            UserDefaults.standard.removeObject(forKey: logoUrlKey)
+        }
+    }
+    
     /// Clear activation (for testing or re-activation)
     static func clearActivation() {
         UserDefaults.standard.removeObject(forKey: isActivatedKey)
         UserDefaults.standard.removeObject(forKey: secureKeyKey)
         UserDefaults.standard.removeObject(forKey: deviceCodeKey)
+        UserDefaults.standard.removeObject(forKey: tickerMessageKey)
+        UserDefaults.standard.removeObject(forKey: logoUrlKey)
         print("🗑️ Activation cleared from UserDefaults")
     }
 }

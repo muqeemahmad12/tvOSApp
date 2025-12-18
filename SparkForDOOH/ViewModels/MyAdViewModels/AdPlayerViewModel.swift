@@ -258,6 +258,14 @@ private extension AdPlayerViewModel {
         let group = groupedAds[currentIndex]
         currentGroup = group
         print("▶️ Playing group \(group.sequence) — \(group.ii.count) ads")
+        
+        // Update heartbeat with current playback status
+        let currentAdId = group.ii.first?.itemid ?? ""
+        HeartbeatAPI.shared.updatePlaybackStatus(
+            sequenceIndex: group.sequence,
+            adId: currentAdId,
+            isPlaying: true
+        )
 
         let ads = group.ii
 
