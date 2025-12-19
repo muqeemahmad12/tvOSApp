@@ -80,36 +80,6 @@
             endingLineNumber = "157"
             landmarkName = "sendHeartbeat()"
             landmarkType = "7">
-            <Locations>
-               <Location
-                  uuid = "C7FD4353-3FC9-4CAA-9382-D3693F242D15 - ca8ede435e10bf32"
-                  shouldBeEnabled = "Yes"
-                  ignoreCount = "0"
-                  continueAfterRunningActions = "No"
-                  symbolName = "(13) suspend resume partial function for SparkForDOOH.HeartbeatAPI.sendHeartbeat() async -&gt; ()"
-                  moduleName = "SparkForDOOH.debug.dylib"
-                  usesParentBreakpointCondition = "Yes"
-                  urlString = "file:///Users/muqeem.ahmad/Documents/Projects/TVShowBrowser/SparkForDOOH/Services/HeartbeatAPI.swift"
-                  startingColumnNumber = "9223372036854775807"
-                  endingColumnNumber = "9223372036854775807"
-                  startingLineNumber = "147"
-                  endingLineNumber = "147">
-               </Location>
-               <Location
-                  uuid = "C7FD4353-3FC9-4CAA-9382-D3693F242D15 - d3c7f84e413ee66"
-                  shouldBeEnabled = "Yes"
-                  ignoreCount = "0"
-                  continueAfterRunningActions = "No"
-                  symbolName = "(15) suspend resume partial function for SparkForDOOH.HeartbeatAPI.sendHeartbeat() async -&gt; ()"
-                  moduleName = "SparkForDOOH.debug.dylib"
-                  usesParentBreakpointCondition = "Yes"
-                  urlString = "file:///Users/muqeem.ahmad/Documents/Projects/TVShowBrowser/SparkForDOOH/Services/HeartbeatAPI.swift"
-                  startingColumnNumber = "9223372036854775807"
-                  endingColumnNumber = "9223372036854775807"
-                  startingLineNumber = "157"
-                  endingLineNumber = "157">
-               </Location>
-            </Locations>
          </BreakpointContent>
       </BreakpointProxy>
       <BreakpointProxy

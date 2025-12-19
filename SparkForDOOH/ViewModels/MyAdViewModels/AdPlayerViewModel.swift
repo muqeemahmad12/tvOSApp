@@ -38,6 +38,10 @@ final class AdPlayerViewModel: ObservableObject {
     fileprivate var consecutiveSyncFailures = 0
     fileprivate let maxSyncFailuresBeforeFallback = 5
     @Published var isUsingFallbackContent = false
+    
+    // MARK: - Background download tracking
+    fileprivate var isPendingDownloadComplete = false
+    fileprivate var isDownloadingInBackground = false
 
     // MARK: - File Manager helpers
     fileprivate var fileManager: FileManager { .default }
@@ -73,6 +77,19 @@ extension AdPlayerViewModel {
             print("⚠️ No groups to play.")
             return
         }
+        
+        // Prevent multiple simultaneous startPlayback calls
+        guard !isPreloading else {
+            print("⏳ Already preloading - ignoring duplicate startPlayback call")
+            return
+        }
+        
+        // If we already have content playing, store as pending instead
+        if !groupedAds.isEmpty && currentGroup != nil {
+            print("🔄 Already playing - storing as pending playlist")
+            pendingGroups = groups
+            return
+        }
 
         currentIndex = 0
 
@@ -83,9 +100,12 @@ extension AdPlayerViewModel {
             return
         }
 
+        // Set preloading flag BEFORE Task to prevent race conditions
+        isPreloading = true
+        
         Task {
             groupedAds = await filterUnplayableAds(newAds: groups) // remove bad videos before playback
-            await preloadAllAssets()
+            await preloadAllAssets()  // This manages isPreloading internally
             playCurrentGroup()
             startAutoSync(screenId: screenId)
         }
@@ -301,13 +321,23 @@ private extension AdPlayerViewModel {
     }
 
     func playVideo(_ ad: AdItemModel) {
-        guard let localURL = localURLs[ad.itemurl] ?? URL(string: ad.itemurl) else {
-            print("Invalid URL:", ad.itemurl)
+        let cachedURL = localURLs[ad.itemurl]
+        let remoteURL = URL(string: ad.itemurl)
+        
+        guard let playURL = cachedURL ?? remoteURL else {
+            print("❌ Invalid URL:", ad.itemurl)
             transitionToNextItem()
             return
         }
+        
+        // Log which URL we're using
+        if cachedURL != nil {
+            print("▶️ Playing from cache: \(playURL.lastPathComponent)")
+        } else {
+            print("⚠️ Playing from REMOTE (not cached): \(ad.itemurl)")
+        }
 
-        activePlayer = AVPlayer(url: localURL)
+        activePlayer = AVPlayer(url: playURL)
         activePlayer?.play()
         
         // Clear Now Playing info to suppress system UI
@@ -401,41 +431,30 @@ private extension AdPlayerViewModel {
 
     /// Advance to the next group or loop / apply new playlist.
     func transitionToNextItem() {
-        // Fade out current content
-        withAnimation(.easeOut(duration: 0.3)) {
-            contentOpacity = 0.0
-        }
-        
-        // After fade out, switch content and fade in
-        DispatchQueue.main.asyncAfter(deadline: .now() + 0.3) { [weak self] in
-            guard let self = self else { return }
-            
-            self.currentIndex += 1
+        currentIndex += 1
 
-            if self.currentIndex >= self.groupedAds.count {
-                print("🔁 Loop finished.")
+        if currentIndex >= groupedAds.count {
+            print("🔁 Loop finished.")
 
-                let now = Date()
-                if now.timeIntervalSince(self.lastAppliedSync) >= self.repeatInTime,
-                   !self.pendingGroups.isEmpty {
-                    print("📥 Time to apply new playlist — preparing safely…")
-                    Task {
-                        await self.applyPendingPlaylistSafely()
-                    }
-                    return
+            let now = Date()
+            // Only apply new playlist if: enough time passed, pending groups exist, AND downloads are complete
+            if now.timeIntervalSince(lastAppliedSync) >= repeatInTime,
+               !pendingGroups.isEmpty,
+               isPendingDownloadComplete {
+                print("📥 Downloads complete - applying new playlist safely…")
+                Task {
+                    await applyPendingPlaylistSafely()
                 }
-
-                self.currentIndex = 0
+                return
+            } else if !pendingGroups.isEmpty && !isPendingDownloadComplete {
+                print("⏳ Downloads still in progress - continuing current playlist")
             }
 
-            self.slideOffset = 0
-            self.playCurrentGroup()
-            
-            // Fade in new content
-            withAnimation(.easeIn(duration: 0.3)) {
-                self.contentOpacity = 1.0
-            }
+            currentIndex = 0
         }
+
+        slideOffset = 0
+        playCurrentGroup()
     }
 }
 
@@ -458,8 +477,13 @@ private extension AdPlayerViewModel {
                 let response = try await APIService.shared.fetchItemSeqInfo(screenId: screenId,
                                                                             reqNum: reqNum)
                 print("🔄 Sync data fetched: \(response.groupedAds.count) groups")
+                
+                // Store pending groups
                 pendingGroups = response.groupedAds
-                await applyPendingPlaylistSafely()
+                isPendingDownloadComplete = false
+                
+                // Start background download immediately (don't wait for loop to finish)
+                await startBackgroundDownload()
                 
                 // Reset failure counter on success
                 consecutiveSyncFailures = 0
@@ -477,6 +501,24 @@ private extension AdPlayerViewModel {
                 }
             }
         }
+    }
+    
+    /// Download new assets in background while current playlist continues playing
+    func startBackgroundDownload() async {
+        guard !pendingGroups.isEmpty, !isDownloadingInBackground else { return }
+        
+        isDownloadingInBackground = true
+        print("📥 Starting background download for new playlist...")
+        
+        let oldGroups = groupedAds
+        let newGroups = pendingGroups
+        
+        // Download only new items (diff)
+        await preloadNewItems(old: oldGroups, new: newGroups)
+        
+        isDownloadingInBackground = false
+        isPendingDownloadComplete = true
+        print("✅ Background download complete - ready to apply on next loop")
     }
     
     /// Handle fallback after 5 consecutive sync failures
@@ -498,15 +540,11 @@ private extension AdPlayerViewModel {
     func applyPendingPlaylistSafely() async {
         guard !pendingGroups.isEmpty else { return }
 
-        print("📥 Applying NEW playlist safely with diff merging…")
+        print("📥 Applying NEW playlist (downloads already complete)…")
 
-        let oldGroups = groupedAds
         let newGroups = pendingGroups
 
-        // STEP 1 — Preload only new assets (based on diff)
-        await preloadNewItems(old: oldGroups, new: newGroups)
-
-        // STEP 2 — Cleanup old unused files
+        // STEP 1 — Cleanup old unused files (downloads already done in background)
         cleanupObsoleteFiles(keeping: newGroups)
 
         // STEP 3 — Reset memory state
@@ -514,20 +552,31 @@ private extension AdPlayerViewModel {
         imageCache.removeAll()
 
         // STEP 4 — Rebuild localURLs using files on disk for new playlist
+        print("🔍 Rebuilding localURLs for \(newGroups.flatMap { $0.ii }.count) ads...")
+        var foundCount = 0
+        var missingCount = 0
+        
         for group in newGroups {
             for ad in group.ii {
-                let fileName = URL(string: ad.itemurl)?.lastPathComponent ?? ""
-                let path = adsCacheDir.appendingPathComponent(fileName).path
+                // Use lowercased filename to match how downloadAsset saves files
+                let fileName = URL(string: ad.itemurl)?.lastPathComponent.lowercased() ?? ""
+                let localURL = adsCacheDir.appendingPathComponent(fileName)
 
-                if fileManager.fileExists(atPath: path) {
-                    localURLs[ad.itemurl] = adsCacheDir.appendingPathComponent(fileName)
+                if fileManager.fileExists(atPath: localURL.path) {
+                    localURLs[ad.itemurl] = localURL
+                    foundCount += 1
+                } else {
+                    print("⚠️ File NOT found: \(fileName) at \(localURL.path)")
+                    missingCount += 1
                 }
             }
         }
+        print("📊 Rebuild complete: \(foundCount) found, \(missingCount) missing")
 
         // STEP 5 — Apply playlist
         groupedAds = newGroups
         pendingGroups.removeAll()
+        isPendingDownloadComplete = false  // Reset for next sync
         currentIndex = 0
         lastAppliedSync = Date()
 

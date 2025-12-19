@@ -87,7 +87,6 @@ struct AdPlayerView: View {
                         }
                     }
                 }
-                .opacity(viewModel.contentOpacity)  // Crossfade transition
             } else {
                 PlayerLoadingPlaceholderView()
             }
