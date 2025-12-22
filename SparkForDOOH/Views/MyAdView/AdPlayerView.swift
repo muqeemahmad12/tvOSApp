@@ -11,6 +11,7 @@ import UIKit
 
 struct AdPlayerView: View {
     @StateObject private var viewModel = AdPlayerViewModel()
+    @StateObject private var networkMonitor = NetworkMonitor.shared
     @ObservedObject var listVM: AdPlaylistViewModel
     @State private var videoFullScreen = false
     @State private var tickerMessage: String? = nil
@@ -38,7 +39,7 @@ struct AdPlayerView: View {
                     let rightImageWidth = screenWidth - videoWidth
                     
                     if hasImages && !hasVideo && images.count == 1 {
-                        if let img = viewModel.imageCache[images[0].itemurl] {
+                        if let img = resolveImage(for: images[0]) {
                             Image(uiImage: img)
                                 .resizable()
                                 .aspectRatio(contentMode: .fill)
@@ -60,7 +61,7 @@ struct AdPlayerView: View {
                             
                             // MARK: - Bottom Image
                             if let bottomAd = group.ii.filter({ $0.assettype.lowercased() == "image" }).first {
-                                if let img = viewModel.imageCache[bottomAd.itemurl] {
+                                if let img = resolveImage(for: bottomAd) {
                                     Image(uiImage: img)
                                         .resizable()
                                         .aspectRatio(contentMode: .fill)
@@ -73,7 +74,7 @@ struct AdPlayerView: View {
                             
                             // MARK: - Right Vertical Image (20% width)
                             if let rightAd = group.ii.filter({ $0.assettype.lowercased() == "image" }).last {
-                                if let img = viewModel.imageCache[rightAd.itemurl] {
+                                if let img = resolveImage(for: rightAd) {
                                     Image(uiImage: img)
                                         .resizable()
                                         .aspectRatio(contentMode: .fill)
@@ -99,14 +100,20 @@ struct AdPlayerView: View {
                     showTime: true  // Can be controlled via config
                 )
             }
+            
+            // MARK: - No Internet Overlay (non-intrusive)
+            if !networkMonitor.isConnected {
+                NoInternetOverlay()
+                    .transition(.opacity)
+                    .animation(.easeInOut(duration: 0.3), value: networkMonitor.isConnected)
+            }
         }
         .ignoresSafeArea() // Ensure the entire player fills the tvOS window
         .accessibilityIdentifier("AdPlayerRootView")
         // MARK: - ViewModel Triggers
         .onChange(of: listVM.groupedAds) { newGroups in
-            if !newGroups.isEmpty {
-                viewModel.startPlayback(with: newGroups)
-            }
+            // Always trigger playback - will use safe content if empty
+            viewModel.startPlayback(with: newGroups)
         }
         .onAppear {
             // Prevent screensaver/sleep while playing ads
@@ -123,9 +130,8 @@ struct AdPlayerView: View {
             // Start heartbeat service
             HeartbeatAPI.shared.startHeartbeat()
             
-            if !listVM.groupedAds.isEmpty {
-                viewModel.startPlayback(with: listVM.groupedAds)
-            }
+            // Start playback - will use safe content if list is empty
+            viewModel.startPlayback(with: listVM.groupedAds)
         }
         .onDisappear {
             // Re-enable idle timer when leaving player
@@ -143,6 +149,18 @@ struct AdPlayerView: View {
             tickerMessage = AppRootViewModel.getSavedTickerMessage()
             logoUrl = AppRootViewModel.getSavedLogoUrl()
         }
+    }
+    
+    // MARK: - Helper to resolve images (cache, bundle, or safe content)
+    private func resolveImage(for ad: AdItemModel) -> UIImage? {
+        // Check if it's a bundle image (safe content)
+        if ad.itemurl.hasPrefix("bundle://") {
+            let imageName = ad.itemurl.replacingOccurrences(of: "bundle://", with: "")
+            return UIImage(named: imageName) ?? SafeContentManager.shared.getSafeContentImage()
+        }
+        
+        // Otherwise look in the cache
+        return viewModel.imageCache[ad.itemurl]
     }
 }
 

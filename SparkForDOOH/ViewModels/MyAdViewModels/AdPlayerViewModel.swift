@@ -38,6 +38,7 @@ final class AdPlayerViewModel: ObservableObject {
     fileprivate var consecutiveSyncFailures = 0
     fileprivate let maxSyncFailuresBeforeFallback = 5
     @Published var isUsingFallbackContent = false
+    @Published var isPlayingSafeContent = false
     
     // MARK: - Background download tracking
     fileprivate var isPendingDownloadComplete = false
@@ -73,19 +74,28 @@ final class AdPlayerViewModel: ObservableObject {
 extension AdPlayerViewModel {
     /// Entry point: prepare assets, then begin playback and auto-sync.
     func startPlayback(with groups: [AdSequenceGroup]) {
-        guard !groups.isEmpty else {
-            print("⚠️ No groups to play.")
+        // Handle empty playlist with safe content fallback
+        if groups.isEmpty {
+            print("⚠️ Empty playlist received - attempting safe content fallback")
+            handleEmptyPlaylistFallback()
             return
         }
         
-        // Prevent multiple simultaneous startPlayback calls
+        // If we were showing placeholder/safe content, allow real content to take over
+        if isPlayingSafeContent {
+            print("✅ Real content received - replacing safe content fallback")
+            isPlayingSafeContent = false
+            isPreloading = false  // Reset so we can start real playback
+        }
+        
+        // Prevent multiple simultaneous startPlayback calls (but not if we have no content yet)
         guard !isPreloading else {
             print("⏳ Already preloading - ignoring duplicate startPlayback call")
             return
         }
         
-        // If we already have content playing, store as pending instead
-        if !groupedAds.isEmpty && currentGroup != nil {
+        // If we already have REAL content playing, store as pending instead
+        if !groupedAds.isEmpty && currentGroup != nil && !isPlayingSafeContent {
             print("🔄 Already playing - storing as pending playlist")
             pendingGroups = groups
             return
@@ -117,6 +127,29 @@ extension AdPlayerViewModel {
         NotificationCenter.default.removeObserver(self)
         timer?.invalidate()
         syncTimer?.invalidate()
+    }
+    
+    /// Handle empty playlist by falling back to safe content
+    private func handleEmptyPlaylistFallback() {
+        isPlayingSafeContent = true
+        
+        // Try to use safe content from bundle
+        if let safeGroup = SafeContentManager.shared.getSafeContentGroup() {
+            print("🛡️ Using bundled safe content as fallback")
+            groupedAds = [safeGroup]
+            currentIndex = 0
+            playCurrentGroup()
+            
+            // Still try to sync in case content becomes available
+            startAutoSync(screenId: screenId)
+        } else {
+            print("⚠️ No safe content available - showing placeholder")
+            // The view will show PlayerLoadingPlaceholderView
+            // Note: Do NOT set isPreloading = true here, as it would block real content from loading
+            
+            // Keep trying to sync
+            startAutoSync(screenId: screenId)
+        }
     }
 }
 
