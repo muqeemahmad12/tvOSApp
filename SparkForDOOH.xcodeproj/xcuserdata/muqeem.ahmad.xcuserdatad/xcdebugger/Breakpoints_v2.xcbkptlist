@@ -23,52 +23,6 @@
       <BreakpointProxy
          BreakpointExtensionID = "Xcode.Breakpoint.FileBreakpoint">
          <BreakpointContent
-            uuid = "B7AFFA79-BBF6-42FE-BC0A-519C3E520284"
-            shouldBeEnabled = "Yes"
-            ignoreCount = "0"
-            continueAfterRunningActions = "No"
-            filePath = "SparkForDOOH/Services/ImpressionTrackingAPI.swift"
-            startingColumnNumber = "9223372036854775807"
-            endingColumnNumber = "9223372036854775807"
-            startingLineNumber = "71"
-            endingLineNumber = "71"
-            landmarkName = "sendEvent(type:ad:screenId:duration:)"
-            landmarkType = "7">
-            <Locations>
-               <Location
-                  uuid = "B7AFFA79-BBF6-42FE-BC0A-519C3E520284 - 6de8fbfe634d1d1e"
-                  shouldBeEnabled = "Yes"
-                  ignoreCount = "0"
-                  continueAfterRunningActions = "No"
-                  symbolName = "(3) suspend resume partial function for SparkForDOOH.ImpressionTrackingAPI.sendEvent(type: Swift.String, ad: SparkForDOOH.AdItemModel, screenId: Swift.String, duration: Swift.Optional&lt;Swift.Int&gt;) async -&gt; ()"
-                  moduleName = "SparkForDOOH.debug.dylib"
-                  usesParentBreakpointCondition = "Yes"
-                  urlString = "file:///Users/muqeem.ahmad/Documents/Projects/TVShowBrowser/SparkForDOOH/Services/ImpressionTrackingAPI.swift"
-                  startingColumnNumber = "9223372036854775807"
-                  endingColumnNumber = "9223372036854775807"
-                  startingLineNumber = "71"
-                  endingLineNumber = "71">
-               </Location>
-               <Location
-                  uuid = "B7AFFA79-BBF6-42FE-BC0A-519C3E520284 - 6760fe2c1709fb1b"
-                  shouldBeEnabled = "Yes"
-                  ignoreCount = "0"
-                  continueAfterRunningActions = "No"
-                  symbolName = "(6) suspend resume partial function for SparkForDOOH.ImpressionTrackingAPI.sendEvent(type: Swift.String, ad: SparkForDOOH.AdItemModel, screenId: Swift.String, duration: Swift.Optional&lt;Swift.Int&gt;) async -&gt; ()"
-                  moduleName = "SparkForDOOH.debug.dylib"
-                  usesParentBreakpointCondition = "Yes"
-                  urlString = "file:///Users/muqeem.ahmad/Documents/Projects/TVShowBrowser/SparkForDOOH/Services/ImpressionTrackingAPI.swift"
-                  startingColumnNumber = "9223372036854775807"
-                  endingColumnNumber = "9223372036854775807"
-                  startingLineNumber = "71"
-                  endingLineNumber = "71">
-               </Location>
-            </Locations>
-         </BreakpointContent>
-      </BreakpointProxy>
-      <BreakpointProxy
-         BreakpointExtensionID = "Xcode.Breakpoint.FileBreakpoint">
-         <BreakpointContent
             uuid = "C7FD4353-3FC9-4CAA-9382-D3693F242D15"
             shouldBeEnabled = "Yes"
             ignoreCount = "0"
@@ -425,6 +379,38 @@
             startingLineNumber = "154"
             endingLineNumber = "154"
             landmarkName = "sendHeartbeat()"
+            landmarkType = "7">
+         </BreakpointContent>
+      </BreakpointProxy>
+      <BreakpointProxy
+         BreakpointExtensionID = "Xcode.Breakpoint.FileBreakpoint">
+         <BreakpointContent
+            uuid = "BBF5EC44-082E-45A7-8B3E-BCA6652C646E"
+            shouldBeEnabled = "Yes"
+            ignoreCount = "0"
+            continueAfterRunningActions = "No"
+            filePath = "SparkForDOOH/Services/ActivationPollAPI.swift"
+            startingColumnNumber = "9223372036854775807"
+            endingColumnNumber = "9223372036854775807"
+            startingLineNumber = "39"
+            endingLineNumber = "39"
+            landmarkName = "pollOnce(deviceCode:)"
+            landmarkType = "7">
+         </BreakpointContent>
+      </BreakpointProxy>
+      <BreakpointProxy
+         BreakpointExtensionID = "Xcode.Breakpoint.FileBreakpoint">
+         <BreakpointContent
+            uuid = "CCB9D97A-FCE8-4D29-8BE0-874BCC7FCFA3"
+            shouldBeEnabled = "Yes"
+            ignoreCount = "0"
+            continueAfterRunningActions = "No"
+            filePath = "SparkForDOOH/Services/ActivationAPI.swift"
+            startingColumnNumber = "9223372036854775807"
+            endingColumnNumber = "9223372036854775807"
+            startingLineNumber = "38"
+            endingLineNumber = "38"
+            landmarkName = "requestActivation(payload:)"
             landmarkType = "7">
          </BreakpointContent>
       </BreakpointProxy>

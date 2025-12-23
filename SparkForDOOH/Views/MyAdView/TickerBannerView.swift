@@ -2,13 +2,13 @@
 //  TickerBannerView.swift
 //  SparkForDOOH
 //
-//  Displays scrolling ticker message, logo, and time overlay during ad playback.
+//  Displays scrolling ticker message, logo, time and weather overlay during ad playback.
 //
 
 import SwiftUI
 
-/// Ticker banner overlay that displays at the bottom of the screen during ad playback.
-/// Shows a scrolling ticker message, optional logo, and current time.
+/// Ticker banner overlay that displays during ad playback.
+/// Layout: Logo (top-left), Time + Weather (top-right), Ticker (bottom)
 struct TickerBannerView: View {
     let tickerMessage: String?
     let logoUrl: String?
@@ -17,6 +17,7 @@ struct TickerBannerView: View {
     @State private var tickerOffset: CGFloat = 0
     @State private var logoImage: UIImage?
     @State private var currentTime: String = ""
+    @StateObject private var weatherService = WeatherService.shared
     
     private let tickerHeight: CGFloat = 60
     private let logoSize: CGFloat = 80
@@ -32,38 +33,41 @@ struct TickerBannerView: View {
     
     var body: some View {
         VStack {
-            // Top bar: Time (left) and Logo (right)
+            // Top bar: Logo (left) and Time + Weather (right)
             HStack(alignment: .top) {
-                // Time display in top-left
-                if showTime {
-                    TimeDisplayView(currentTime: currentTime)
-                        .padding(20)
-                }
+                // Hospital Logo in top-left corner (always shown)
+                HospitalLogoView(logoImage: logoImage)
+                    .padding(20)
                 
                 Spacer()
                 
-                // Logo in top-right corner
-                if let logoImage = logoImage {
-                    Image(uiImage: logoImage)
-                        .resizable()
-                        .aspectRatio(contentMode: .fit)
-                        .frame(width: logoSize, height: logoSize)
-                        .clipShape(RoundedRectangle(cornerRadius: 8))
-                        .shadow(color: .black.opacity(0.3), radius: 4, x: 0, y: 2)
-                        .padding(20)
+                // Time + Weather in top-right
+                if showTime {
+                    TimeWeatherView(
+                        currentTime: currentTime,
+                        weather: weatherService.currentWeather
+                    )
+                    .padding(20)
                 }
             }
             
             Spacer()
             
-            // Ticker at bottom
+            // Ticker at bottom - scrolls forever (capsule style)
             if let message = tickerMessage, !message.isEmpty {
                 TickerScrollView(message: message, height: tickerHeight)
+                    .clipShape(Capsule())
+                    .padding(.horizontal, 40)
+                    .padding(.bottom, 30)
             }
         }
         .onAppear {
             loadLogo()
             updateTime()
+            weatherService.startWeatherUpdates()
+        }
+        .onDisappear {
+            weatherService.stopWeatherUpdates()
         }
         .onChange(of: logoUrl) { _ in
             loadLogo()
@@ -100,7 +104,76 @@ struct TickerBannerView: View {
     }
 }
 
-/// Displays current time with a subtle background
+/// Hospital logo display in top-left corner (logo only, no text)
+struct HospitalLogoView: View {
+    let logoImage: UIImage?
+    
+    var body: some View {
+        Group {
+            if let logo = logoImage {
+                Image(uiImage: logo)
+                    .resizable()
+                    .aspectRatio(contentMode: .fit)
+                    .frame(height: 320)  // Match screenshot size
+                    .clipShape(RoundedRectangle(cornerRadius: 16))
+                    .shadow(color: .black.opacity(0.3), radius: 8, x: 0, y: 4)
+            }
+            // If no logo URL provided, show nothing (no default icon)
+        }
+    }
+}
+
+/// Displays current time and weather with a subtle background
+struct TimeWeatherView: View {
+    let currentTime: String
+    let weather: WeatherData?
+    
+    var body: some View {
+        HStack(spacing: 16) {
+            // Time with clock icon
+            HStack(spacing: 8) {
+                Image(systemName: "clock")
+                    .font(.system(size: 22, weight: .medium))
+                    .foregroundColor(.white)
+                
+                Text(currentTime)
+                    .font(.system(size: 28, weight: .semibold, design: .rounded))
+                    .foregroundColor(.white)
+            }
+            
+            // Divider
+            Rectangle()
+                .fill(Color.white.opacity(0.3))
+                .frame(width: 1, height: 30)
+            
+            // Weather
+            if let weather = weather {
+                HStack(spacing: 8) {
+                    Image(systemName: weather.condition.iconName)
+                        .font(.system(size: 24, weight: .medium))
+                        .foregroundColor(.white)
+                    
+                    Text("\(weather.temperature)°C")
+                        .font(.system(size: 28, weight: .semibold, design: .rounded))
+                        .foregroundColor(.white)
+                }
+            }
+        }
+        .padding(.horizontal, 20)
+        .padding(.vertical, 12)
+        .background(
+            Capsule()
+                .fill(Color.white.opacity(0.2))
+                .background(
+                    Capsule()
+                        .stroke(Color.white.opacity(0.3), lineWidth: 1)
+                )
+        )
+        .shadow(color: .black.opacity(0.2), radius: 4, x: 0, y: 2)
+    }
+}
+
+/// Displays current time with a subtle background (legacy, kept for compatibility)
 struct TimeDisplayView: View {
     let currentTime: String
     
@@ -131,15 +204,14 @@ struct TickerScrollView: View {
     var body: some View {
         GeometryReader { geometry in
             ZStack {
-                // Semi-transparent background
-                LinearGradient(
-                    gradient: Gradient(colors: [
-                        Color.black.opacity(0.8),
-                        Color.black.opacity(0.9)
-                    ]),
-                    startPoint: .top,
-                    endPoint: .bottom
-                )
+                // Capsule transparent background matching top-right style
+                Capsule()
+                    .fill(Color.white.opacity(0.2))
+                    .overlay(
+                        Capsule()
+                            .stroke(Color.white.opacity(0.3), lineWidth: 1)
+                    )
+                    .shadow(color: .black.opacity(0.2), radius: 4, x: 0, y: 2)
                 
                 // Scrolling text
                 HStack(spacing: 0) {
@@ -164,6 +236,7 @@ struct TickerScrollView: View {
                         .fixedSize()
                         .offset(x: offset + textWidth + 100)
                 }
+                .padding(.horizontal, 30)  // Padding inside capsule
             }
         }
         .frame(height: height)
