@@ -9,13 +9,26 @@ import Foundation
 import Combine
 
 /// Loads and exposes the current ad playlist (grouped ads) for a given screen,
-/// handling loading state, basic retries, and user-friendly error messages.
+/// handling loading state, basic retries, caching, and user-friendly error messages.
 @MainActor
 final class AdPlaylistViewModel: ObservableObject {
     @Published var ads: [AdItemModel] = []                // Flattened list (optional)
     @Published var groupedAds: [AdSequenceGroup] = []     // Grouped list (1–3 per sequence)
     @Published var isLoading = false
     @Published var errorMessage: String?
+    @Published var isUsingCachedPlaylist = false          // True if using offline cache
+    
+    private let cacheService = PlaylistCacheService.shared
+    
+    /// Load cached playlist immediately on init (for fast launch)
+    func loadCachedPlaylistIfAvailable() {
+        if let cached = cacheService.loadCachedPlaylist(), !cached.isEmpty {
+            groupedAds = cached
+            ads = cached.flatMap { $0.ii }
+            isUsingCachedPlaylist = true
+            print("📂 Using cached playlist for immediate playback")
+        }
+    }
 
     func fetchAds(screenId: String, reqNum: Int) {
         isLoading = true
@@ -34,10 +47,23 @@ final class AdPlaylistViewModel: ObservableObject {
                 let groups = response.groupedAds
                 groupedAds = groups
                 ads = groups.flatMap { $0.ii }
+                isUsingCachedPlaylist = false
+                
+                // Cache the playlist for offline use
+                cacheService.savePlaylist(groups)
+                
             } catch {
                 let appError = AppError.from(error)
                 errorMessage = appError.localizedDescription
                 print("❌ Playlist API Failed:", appError)
+                
+                // Fall back to cached playlist if API fails
+                if groupedAds.isEmpty, let cached = cacheService.loadCachedPlaylist() {
+                    groupedAds = cached
+                    ads = cached.flatMap { $0.ii }
+                    isUsingCachedPlaylist = true
+                    print("📂 API failed - using cached playlist as fallback")
+                }
             }
 
             isLoading = false

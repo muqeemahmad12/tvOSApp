@@ -515,6 +515,9 @@ private extension AdPlayerViewModel {
                 pendingGroups = response.groupedAds
                 isPendingDownloadComplete = false
                 
+                // Cache the playlist for offline use
+                PlaylistCacheService.shared.savePlaylist(response.groupedAds)
+                
                 // Start background download immediately (don't wait for loop to finish)
                 await startBackgroundDownload()
                 

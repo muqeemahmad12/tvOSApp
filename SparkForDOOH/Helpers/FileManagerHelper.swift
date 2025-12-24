@@ -14,10 +14,12 @@ final class FileManagerHelper {
     /// Directories to preserve when clearing caches.
     /// - io.sentry: Sentry crash reports
     /// - AdsCache: Downloaded ad assets for playback
+    /// - PlaylistCache: Cached playlist structure for offline relaunch
     /// - com.doceree.DocereeiOSMainNew: SQLite cache (deleting while in use causes errors)
     private let protectedDirectoryNames: Set<String> = [
         "io.sentry",
         "AdsCache",
+        "PlaylistCache",
         "com.doceree.DocereeiOSMainNew"
     ]
 

@@ -9,8 +9,8 @@ import Foundation
 
 // MARK: - Root Response
 struct ItemSeqInfoResponse: Codable {
-    let screenid: String
-    let status: String
+    let screenid: String?
+    let status: String?
     let item1: [AdSequenceGroup]
 }
 

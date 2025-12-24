@@ -21,16 +21,36 @@ final class APIService {
         var request = URLRequest(url: url)
         request.httpMethod = "POST"
         request.setValue("application/json", forHTTPHeaderField: "Content-Type")
+        
+        // Get the secureKey from activation (required by API - sent in header)
+        let secureKey = await AppRootViewModel.getSavedSecureKey() ?? ""
+        request.setValue(secureKey, forHTTPHeaderField: "X-Requested-With")
 
-        let payload: [String: Any] = ["screenid": screenId, "reqNum": reqNum]
+        // Only reqNum in body - screenId is derived from securityKey on server
+        let payload: [String: Any] = [
+            "reqNum": reqNum
+        ]
         request.httpBody = try JSONSerialization.data(withJSONObject: payload, options: [])
 
         do {
         let (data, response) = try await URLSession.shared.data(for: request)
+        
+        // Log request details for debugging
+        print("📤 API Request: \(url)")
+        print("📤 Payload: reqNum=\(reqNum)")
+        print("📤 Header X-Requested-With: \(secureKey) (length: \(secureKey.count))")
 
-        guard let http = response as? HTTPURLResponse,
-              (200...299).contains(http.statusCode) else {
-                throw AppError.invalidResponse
+        guard let http = response as? HTTPURLResponse else {
+            throw AppError.invalidResponse
+        }
+        
+        // Log response even if not 2xx
+        if !(200...299).contains(http.statusCode) {
+            print("❌ API Error - Status: \(http.statusCode)")
+            if let raw = String(data: data, encoding: .utf8) {
+                print("❌ Response Body:\n\(raw)")
+            }
+            throw AppError.invalidResponse
         }
 
         do {
