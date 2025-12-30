@@ -21,6 +21,7 @@ final class APIService {
         var request = URLRequest(url: url)
         request.httpMethod = "POST"
         request.setValue("application/json", forHTTPHeaderField: "Content-Type")
+        request.setValue("fdd74745-a0ed-440c-ad10-3815d659a599", forHTTPHeaderField: "x-api-key")
         
         // Get the secureKey from activation (required by API - sent in header)
         let secureKey = await AppRootViewModel.getSavedSecureKey() ?? ""
