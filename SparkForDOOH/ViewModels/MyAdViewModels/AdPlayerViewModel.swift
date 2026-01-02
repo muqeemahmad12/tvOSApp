@@ -62,11 +62,15 @@ final class AdPlayerViewModel: ObservableObject {
 
     /// Soft cap for in-memory image cache to avoid unbounded growth with very large playlists.
     fileprivate let maxImageCacheEntries = 200
+    
+    /// Hard cap for on-disk ads cache (bytes). LRU eviction will run when exceeded.
+    fileprivate let maxAdsCacheSizeBytes: UInt64
 
     init(config: AppConfig = .current, disablePreloadingAndValidation: Bool = false) {
         self.screenId = config.screenId
         self.repeatInTime = config.playlistRepeatInterval
         self.disablePreloadingAndValidation = disablePreloadingAndValidation
+        self.maxAdsCacheSizeBytes = config.adsCacheMaxBytes
     }
 }
 
@@ -181,6 +185,9 @@ private extension AdPlayerViewModel {
             await MainActor.run { preloadProgress = completed / total }
         }
 
+        // Enforce disk cap after downloads (protect currently referenced assets)
+        enforceCacheSizeLimit(keeping: groupedAds)
+
         await MainActor.run {
             isPreloading = false
             print("✅ All assets downloaded to \(adsCacheDir.lastPathComponent)")
@@ -195,6 +202,10 @@ private extension AdPlayerViewModel {
 
         // If cached already on disk → load into memory and return
         if fileManager.fileExists(atPath: destination.path) {
+            if let attrs = try? fileManager.attributesOfItem(atPath: destination.path),
+               let fileSize = attrs[.size] as? UInt64 {
+                print("📦 Using cached file (\(formatBytes(fileSize))):", fileName)
+            }
             // Still need to cache images in memory!
             if fileName.hasSuffix(".jpg") || fileName.hasSuffix(".png") || fileName.hasSuffix(".jpeg") {
                 if let data = try? Data(contentsOf: destination),
@@ -212,7 +223,7 @@ private extension AdPlayerViewModel {
             print("⬇️ Downloading:", fileName)
             let (data, _) = try await URLSession.shared.data(from: remoteURL)
             try data.write(to: destination)
-            print("💾 Saved:", fileName)
+            print("💾 Saved: \(fileName) (\(formatBytes(UInt64(data.count))))")
 
             // Decode & cache images immediately
             if fileName.hasSuffix(".jpg") || fileName.hasSuffix(".png") || fileName.hasSuffix(".jpeg"),
@@ -263,6 +274,9 @@ private extension AdPlayerViewModel {
                 localURLs[ad.itemurl] = url
             }
         }
+
+        // Enforce cap using union of old+new groups to avoid evicting active assets
+        enforceCacheSizeLimit(keeping: oldGroups + filteredGroups)
 
         print("✅ Preloading new items completed")
     }
@@ -642,6 +656,69 @@ private extension AdPlayerViewModel {
             imageCache.removeValue(forKey: removeKey)
         }
         imageCache[key] = image
+    }
+
+    /// Human-readable size formatter.
+    func formatBytes(_ bytes: UInt64) -> String {
+        let kb = Double(bytes) / 1024.0
+        if kb < 1024 { return String(format: "%.1f KB", kb) }
+        let mb = kb / 1024.0
+        if mb < 1024 { return String(format: "%.2f MB", mb) }
+        let gb = mb / 1024.0
+        return String(format: "%.2f GB", gb)
+    }
+
+    /// Enforce a hard size cap on AdsCache using LRU eviction (oldest access/modification first).
+    func enforceCacheSizeLimit(keeping groups: [AdSequenceGroup]) {
+        let keepFiles = Set(groups.flatMap { group in
+            group.ii.compactMap { URL(string: $0.itemurl)?.lastPathComponent.lowercased() }
+        })
+
+        guard let files = try? fileManager.contentsOfDirectory(
+            at: adsCacheDir,
+            includingPropertiesForKeys: [.fileSizeKey, .contentAccessDateKey, .contentModificationDateKey],
+            options: .skipsHiddenFiles
+        ) else {
+            return
+        }
+
+        var entries: [(url: URL, size: UInt64, date: Date)] = []
+        var totalSize: UInt64 = 0
+
+        for url in files {
+            let values = try? url.resourceValues(forKeys: [.fileSizeKey, .contentAccessDateKey, .contentModificationDateKey])
+            let size = UInt64(values?.fileSize ?? 0)
+            totalSize += size
+            let date = values?.contentAccessDate ?? values?.contentModificationDate ?? Date.distantPast
+            entries.append((url: url, size: size, date: date))
+        }
+
+        guard totalSize > maxAdsCacheSizeBytes else { return } // already within cap
+
+        var remainingSize = totalSize
+        let sorted = entries.sorted { $0.date < $1.date } // oldest first
+
+        for entry in sorted {
+            if remainingSize <= maxAdsCacheSizeBytes { break }
+            let name = entry.url.lastPathComponent.lowercased()
+            if keepFiles.contains(name) {
+                continue // don't evict active/pending assets
+            }
+            do {
+                try fileManager.removeItem(at: entry.url)
+                remainingSize -= entry.size
+                print("🗑️ LRU eviction:", name)
+            } catch {
+                print("⚠️ Failed to evict \(name):", error.localizedDescription)
+            }
+        }
+
+        if remainingSize > maxAdsCacheSizeBytes {
+            print("⚠️ AdsCache still exceeds cap after eviction. Consider increasing maxAdsCacheSizeBytes or reducing asset sizes.")
+        } else {
+            let remainingMB = Double(remainingSize) / (1024 * 1024)
+            print("✅ AdsCache within cap. Current size: \(String(format: "%.1f MB", remainingMB))")
+        }
     }
 }
 

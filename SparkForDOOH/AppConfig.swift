@@ -37,6 +37,9 @@ struct AppConfig {
     
     /// API key for DRS/heartbeat endpoints.
     let apiKey: String
+    
+    /// Maximum on-disk cache size for ads (bytes). Controls LRU eviction in AdsCache.
+    let adsCacheMaxBytes: UInt64
 
     /// Interval (seconds) after which the playlist auto-sync repeats.
     let playlistRepeatInterval: TimeInterval
@@ -56,6 +59,7 @@ struct AppConfig {
         screenId: String? = nil,
         sentryDSN: String? = nil,
         apiKey: String? = nil,
+        adsCacheMaxBytes: UInt64? = nil,
         playlistRepeatInterval: TimeInterval = 2 * 60,
         activationTestTransitionDelay: TimeInterval = 10,
         activationAutoAdvanceForDebug: Bool = false
@@ -89,6 +93,17 @@ struct AppConfig {
         self.apiKey = apiKey
             ?? AppConfig.stringFromInfoPlist(key: "API_KEY")
             ?? "f0172f77-966b-4be3-aef1-7fd439028a46"  // Default API key
+        
+        // Resolve cache max in MB as Double to avoid optional type mismatch, then convert to bytes
+        let cacheMaxMB: Double
+        if let bytes = adsCacheMaxBytes {
+            cacheMaxMB = Double(bytes) / (1024 * 1024)
+        } else if let plistMB = AppConfig.numberFromInfoPlist(key: "ADS_CACHE_MAX_MB") {
+            cacheMaxMB = plistMB
+        } else {
+            cacheMaxMB = 500
+        }
+        self.adsCacheMaxBytes = UInt64(cacheMaxMB * 1024 * 1024)
 
         self.playlistRepeatInterval = playlistRepeatInterval
         self.activationTestTransitionDelay = activationTestTransitionDelay
@@ -117,5 +132,17 @@ struct AppConfig {
             return nil
         }
         return value
+    }
+    
+    /// Read a numeric (Double) value from Info.plist using the given key.
+    private static func numberFromInfoPlist(key: String) -> Double? {
+        if let number = Bundle.main.object(forInfoDictionaryKey: key) as? NSNumber {
+            return number.doubleValue
+        }
+        if let string = Bundle.main.object(forInfoDictionaryKey: key) as? String,
+           let doubleValue = Double(string) {
+            return doubleValue
+        }
+        return nil
     }
 }
