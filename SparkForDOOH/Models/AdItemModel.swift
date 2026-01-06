@@ -12,6 +12,24 @@ struct ItemSeqInfoResponse: Codable {
     let screenid: String?
     let status: String?
     let item1: [AdSequenceGroup]
+    
+    enum CodingKeys: String, CodingKey {
+        case screenid, status, item1
+    }
+    
+    init(screenid: String?, status: String?, item1: [AdSequenceGroup]) {
+        self.screenid = screenid
+        self.status = status
+        self.item1 = item1
+    }
+    
+    init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        screenid = try container.decodeIfPresent(String.self, forKey: .screenid)
+        status = try container.decodeIfPresent(String.self, forKey: .status)
+        // Default to empty array if item1 key is missing to avoid keyNotFound crashes
+        item1 = try container.decodeIfPresent([AdSequenceGroup].self, forKey: .item1) ?? []
+    }
 }
 
 // MARK: - Sequence group — can contain 1–3 ads
