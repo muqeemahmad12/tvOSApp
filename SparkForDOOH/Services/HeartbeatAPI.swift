@@ -29,8 +29,8 @@ final class HeartbeatAPI {
         let message: String?
     }
     
-    /// Heartbeat interval in seconds (60 seconds as per spec)
-    private let heartbeatInterval: TimeInterval = 60
+    /// Heartbeat interval in seconds (20 minutes)
+    private let heartbeatInterval: TimeInterval = 20 * 60
     
     /// Timer for periodic heartbeat
     private var heartbeatTimer: Timer?
