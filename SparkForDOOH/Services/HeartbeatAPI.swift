@@ -13,6 +13,12 @@ import UIKit
 extension Notification.Name {
     /// Posted when ticker/logo is updated from heartbeat response
     static let tickerUpdated = Notification.Name("com.doceree.sparkfordooh.tickerUpdated")
+    
+    /// Posted when the first heartbeat succeeds (used to unlock landing/splash)
+    static let initialHeartbeatSucceeded = Notification.Name("com.doceree.sparkfordooh.initialHeartbeatSucceeded")
+    
+    /// Posted when the first heartbeat fails (used to route to registration/activation)
+    static let initialHeartbeatFailed = Notification.Name("com.doceree.sparkfordooh.initialHeartbeatFailed")
 }
 
 /// Heartbeat API for sending device status to the backend.
@@ -34,6 +40,9 @@ final class HeartbeatAPI {
     
     /// Timer for periodic heartbeat
     private var heartbeatTimer: Timer?
+        
+    /// Flag to indicate we already succeeded at least once
+    private var initialHeartbeatSucceeded = false
     
     /// Current playback info for heartbeat payload
     private var currentSequenceIndex: Int = 0
@@ -50,15 +59,10 @@ final class HeartbeatAPI {
         
         print("💓 Starting heartbeat service (interval: \(Int(heartbeatInterval))s)")
         
-        // Send initial heartbeat
-        Task {
-            await sendHeartbeat()
-        }
-        
         // Schedule periodic heartbeats
         heartbeatTimer = Timer.scheduledTimer(withTimeInterval: heartbeatInterval, repeats: true) { [weak self] _ in
             Task {
-                await self?.sendHeartbeat()
+                _ = await self?.sendHeartbeat()
             }
         }
     }
@@ -83,6 +87,31 @@ final class HeartbeatAPI {
         self.lastSyncTime = Date()
     }
     
+    /// Kick off an initial heartbeat once. On success, start periodic heartbeats.
+    /// On failure, notify so UI can route to registration/activation.
+    func startInitialHeartbeat() {
+        guard initialHeartbeatSucceeded == false else { return }
+        
+        print("💓 Initial heartbeat check starting")
+        
+        Task {
+            let ok = await sendHeartbeat()
+            if ok {
+                markInitialHeartbeatSucceeded()
+            } else {
+                print("⏳ Initial heartbeat failed; routing to registration/activation")
+                NotificationCenter.default.post(name: .initialHeartbeatFailed, object: nil)
+            }
+        }
+    }
+    
+    private func markInitialHeartbeatSucceeded() {
+        initialHeartbeatSucceeded = true
+        print("✅ Initial heartbeat succeeded; stopping retry loop")
+        NotificationCenter.default.post(name: .initialHeartbeatSucceeded, object: nil)
+        startHeartbeat()
+    }
+    
     /// Get current network status
     private func getNetworkStatus() -> String {
         // Simple network check - in production, could use NWPathMonitor
@@ -99,7 +128,8 @@ final class HeartbeatAPI {
     // MARK: - Private Methods
     
     /// Send a single heartbeat to the backend
-    private func sendHeartbeat() async {
+    @discardableResult
+    private func sendHeartbeat() async -> Bool {
         let baseURL = AppConfig.current.activationBaseURL
         let url = baseURL.appendingPathComponent("v1/dooh/device/heartbeat")
         
@@ -143,21 +173,26 @@ final class HeartbeatAPI {
             
             guard let httpResponse = response as? HTTPURLResponse else {
                 print("⚠️ Heartbeat: Invalid response")
-                return
+                return false
             }
             
             if (200...299).contains(httpResponse.statusCode) {
                 // Parse and log response
+                let raw = String(data: data, encoding: .utf8) ?? ""
+                print("💓 Heartbeat OK (HTTP \(httpResponse.statusCode))")
                 if let heartbeatResponse = try? JSONDecoder().decode(HeartbeatResponse.self, from: data) {
-                    print("💓 Heartbeat: \(heartbeatResponse.message ?? "OK")")
-                } else {
-                    print("💓 Heartbeat sent successfully")
+                    print("💓 Parsed: \(heartbeatResponse)")
                 }
+                print("💓 Raw Response: \(raw)")
+                return true
             } else {
-                print("⚠️ Heartbeat failed: HTTP \(httpResponse.statusCode)")
+                let raw = String(data: data, encoding: .utf8) ?? ""
+                print("⚠️ Heartbeat failed: HTTP \(httpResponse.statusCode) — \(raw)")
+                return false
             }
         } catch {
             print("❌ Heartbeat error: \(error.localizedDescription)")
+            return false
         }
     }
 }
