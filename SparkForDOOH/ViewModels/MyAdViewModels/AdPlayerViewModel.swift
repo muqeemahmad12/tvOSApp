@@ -407,17 +407,23 @@ private extension AdPlayerViewModel {
     
     func trackImpression(for ad: AdItemModel) {
         guard !disablePreloadingAndValidation else { return }
-        ImpressionTrackingAPI.shared.trackImpression(ad: ad, screenId: screenId)
+        if let trackers = ad.trackerlist, !trackers.isEmpty {
+            TrackerService.shared.fire(urls: trackers)
+        }
     }
     
     func trackCompletion(for ad: AdItemModel) {
         guard !disablePreloadingAndValidation else { return }
-        ImpressionTrackingAPI.shared.trackCompletion(ad: ad, screenId: screenId)
+        if let trackers = ad.trackerlist, !trackers.isEmpty {
+            TrackerService.shared.fire(urls: trackers)
+        }
     }
     
     func trackImageViewComplete(for ad: AdItemModel, duration: Int) {
         guard !disablePreloadingAndValidation else { return }
-        ImpressionTrackingAPI.shared.trackViewComplete(ad: ad, screenId: screenId, durationSeconds: duration)
+        if let trackers = ad.trackerlist, !trackers.isEmpty {
+            TrackerService.shared.fire(urls: trackers)
+        }
     }
 
     func isVideoPlayable(url: URL) async -> Bool {
@@ -483,11 +489,8 @@ private extension AdPlayerViewModel {
         if currentIndex >= groupedAds.count {
             print("🔁 Loop finished.")
 
-            let now = Date()
-            // Only apply new playlist if: enough time passed, pending groups exist, AND downloads are complete
-            if now.timeIntervalSince(lastAppliedSync) >= repeatInTime,
-               !pendingGroups.isEmpty,
-               isPendingDownloadComplete {
+            // Apply pending playlist as soon as downloads are complete (no delay)
+            if !pendingGroups.isEmpty, isPendingDownloadComplete {
                 print("📥 Downloads complete - applying new playlist safely…")
                 Task {
                     await applyPendingPlaylistSafely()
@@ -568,7 +571,12 @@ private extension AdPlayerViewModel {
         
         isDownloadingInBackground = false
         isPendingDownloadComplete = true
-        print("✅ Background download complete - ready to apply on next loop")
+        print("✅ Background download complete - ready to apply")
+        
+        // If we are not actively playing real content, apply immediately
+        if groupedAds.isEmpty || isPlayingSafeContent || currentGroup == nil {
+            await applyPendingPlaylistSafely()
+        }
     }
     
     /// Handle fallback after 5 consecutive sync failures

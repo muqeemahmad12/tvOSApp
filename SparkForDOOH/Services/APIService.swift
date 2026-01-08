@@ -37,43 +37,47 @@ final class APIService {
         request.httpBody = try JSONSerialization.data(withJSONObject: payload, options: [])
 
         do {
-        let (data, response) = try await URLSession.shared.data(for: request)
+            let (data, response) = try await URLSession.shared.data(for: request)
+            
+            // Log request details for debugging
+            print("📤 API Request: \(url)")
+            print("📤 Payload: reqNum=\(reqNum)")
+            print("📤 Header X-Requested-With: \(secureKey) (length: \(secureKey.count))")
+            print("📤 Header x-dev-id: \(deviceId)")
         
-        // Log request details for debugging
-        print("📤 API Request: \(url)")
-        print("📤 Payload: reqNum=\(reqNum)")
-        print("📤 Header X-Requested-With: \(secureKey) (length: \(secureKey.count))")
-        print("📤 Header x-dev-id: \(deviceId)")
-
-        guard let http = response as? HTTPURLResponse else {
-            throw AppError.invalidResponse
+        if let raw = String(data: data, encoding: .utf8) {
+            print("📥 Raw quest response: \(raw)")
         }
-        
-        // Log response even if not 2xx
-        if !(200...299).contains(http.statusCode) {
-            print("❌ API Error - Status: \(http.statusCode)")
-            if let raw = String(data: data, encoding: .utf8) {
-                print("❌ Response Body:\n\(raw)")
+
+            guard let http = response as? HTTPURLResponse else {
+                throw AppError.invalidResponse
             }
-            throw AppError.invalidResponse
-        }
-
-        do {
-            let decoded = try JSONDecoder().decode(ItemSeqInfoResponse.self, from: data)
-            let groups = decoded.groupedAds
-            print("✅ API Success — Total Groups: \(groups.count)")
-            for group in groups {
-                print("▶️ Sequence \(group.sequence): \(group.ii.count) ads")
-                for ad in group.ii {
-                    print("   🔹 \(ad.itemid): \(ad.assettype) — \(ad.itemurl)")
+            
+            // Log response even if not 2xx
+            if !(200...299).contains(http.statusCode) {
+                print("❌ API Error - Status: \(http.statusCode)")
+                if let raw = String(data: data, encoding: .utf8) {
+                    print("❌ Response Body:\n\(raw)")
                 }
+                throw AppError.invalidResponse
             }
-            return decoded
-        } catch {
-            print("❌ Decoding error: \(error)")
-            if let raw = String(data: data, encoding: .utf8) {
-                print("Raw JSON:\n\(raw)")
-            }
+
+            do {
+                let decoded = try JSONDecoder().decode(ItemSeqInfoResponse.self, from: data)
+                let groups = decoded.groupedAds
+                print("✅ API Success — Total Groups: \(groups.count)")
+                for group in groups {
+                    print("▶️ Sequence \(group.sequence): \(group.ii.count) ads")
+                    for ad in group.ii {
+                        print("   🔹 \(ad.itemid): \(ad.assettype) — \(ad.itemurl)")
+                    }
+                }
+                return decoded
+            } catch {
+                print("❌ Decoding error: \(error)")
+                if let raw = String(data: data, encoding: .utf8) {
+                    print("Raw JSON:\n\(raw)")
+                }
                 throw AppError.decoding
             }
         } catch {
