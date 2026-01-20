@@ -19,7 +19,7 @@ struct TickerBannerView: View {
     @State private var currentTime: String = ""
     @StateObject private var weatherService = WeatherService.shared
     
-    private let tickerHeight: CGFloat = 60
+    private let tickerHeight: CGFloat = 80
     private let logoSize: CGFloat = 80
     
     // Timer for updating clock
@@ -173,24 +173,6 @@ struct TimeWeatherView: View {
     }
 }
 
-/// Displays current time with a subtle background (legacy, kept for compatibility)
-struct TimeDisplayView: View {
-    let currentTime: String
-    
-    var body: some View {
-        Text(currentTime)
-            .font(.system(size: 32, weight: .semibold, design: .rounded))
-            .foregroundColor(.white)
-            .padding(.horizontal, 16)
-            .padding(.vertical, 8)
-            .background(
-                RoundedRectangle(cornerRadius: 10)
-                    .fill(Color.black.opacity(0.6))
-            )
-            .shadow(color: .black.opacity(0.3), radius: 4, x: 0, y: 2)
-    }
-}
-
 /// Scrolling ticker text view
 struct TickerScrollView: View {
     let message: String
@@ -199,7 +181,7 @@ struct TickerScrollView: View {
     @State private var offset: CGFloat = 0
     @State private var textWidth: CGFloat = 0
     
-    private let scrollSpeed: CGFloat = 50 // points per second
+    private let scrollSpeed: CGFloat = 100 // points per second
     
     var body: some View {
         GeometryReader { geometry in
