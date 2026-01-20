@@ -1,7 +1,7 @@
 {
   "images" : [
     {
-      "filename" : "loading_screen.png",
+      "filename" : "loading_bg.png",
       "idiom" : "universal",
       "scale" : "1x"
     },

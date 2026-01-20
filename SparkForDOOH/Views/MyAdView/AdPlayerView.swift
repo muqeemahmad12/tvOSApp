@@ -22,7 +22,7 @@ struct AdPlayerView: View {
             Color.black.ignoresSafeArea()
 
             if viewModel.isPreloading {
-                PlayerLoadingPlaceholderView()
+                LoadingView()
             } else if let group = viewModel.currentGroup {
                 GeometryReader { geo in
                     let videos = group.ii.filter { $0.assettype.lowercased() == "video" }
@@ -89,7 +89,7 @@ struct AdPlayerView: View {
                     }
                 }
             } else {
-                PlayerLoadingPlaceholderView()
+                LoadingView()
             }
             
             // MARK: - Ticker/Banner Overlay (with time display)
@@ -161,43 +161,6 @@ struct AdPlayerView: View {
         
         // Otherwise look in the cache
         return viewModel.imageCache[ad.itemurl]
-    }
-}
-
-/// Shared loading/placeholder layout used while ads are preloading or when there is no data yet.
-private struct PlayerLoadingPlaceholderView: View {
-    var body: some View {
-        ZStack {
-            FullscreenBackground(imageName: "placeholder_image")
-
-            VStack {
-                Text("Loading Informational Sparks \n for your clinical display")
-                    .font(.system(size: 90))
-                    .multilineTextAlignment(.center)
-                    .foregroundColor(Color(hex: "#138bcc"))
-                    .padding(.top, 50)
-
-                Text("Your display will start automatically once the initial download is complete.")
-                    .font(.system(size: 30))
-                    .multilineTextAlignment(.center)
-                    .foregroundColor(Color(hex: "#505050"))
-
-                Spacer()
-            }
-
-            VStack {
-                Spacer()
-                HStack {
-                    Spacer()
-                    Image("tv_frame")
-                        .resizable()
-                        .aspectRatio(contentMode: .fit)
-                        .frame(width: 1050)
-                        .padding(.trailing, 35)
-                        .padding(.bottom, 10)
-                }
-            }
-        }
     }
 }
 

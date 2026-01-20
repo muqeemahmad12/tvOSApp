@@ -16,13 +16,16 @@ struct ActivationView: View {
 
     var body: some View {
         ZStack {
-            FullscreenBackground(imageName: "placeholder_image")
-
-            VStack(spacing: 40) {
-                ActivationTitle()
-
-                Spacer()
-                HStack(alignment: .top, spacing: 80) {
+            Image("registration_bg")
+                .resizable()
+                .scaledToFill()
+                .ignoresSafeArea()
+                .overlay(Color.white.opacity(0.0)) // keep original brightness, ensures no empty space
+            
+            VStack(spacing: 0) {
+                Spacer(minLength: 20)
+                
+                HStack(alignment: .top, spacing: 60) {
                     ActivationCodeSection(
                         activationCode: vm.activationCode,
                         qrURL: vm.qrURL,
@@ -30,10 +33,15 @@ struct ActivationView: View {
                         isRefreshing: vm.isCodeExpired
                     )
                     ActivationInstructionsSection()
+                        .padding(.top, 20)
                     Spacer()
                 }
-
+                .padding(.horizontal, 60)
+                
+                Spacer(minLength: 40)
+                
                 ActivationFooter()
+                    .padding(.bottom, 30)
             }
         }
         .onAppear {
@@ -54,15 +62,6 @@ struct ActivationView: View {
 
 // MARK: - Subviews
 
-private struct ActivationTitle: View {
-    var body: some View {
-        Text("Activate your TV screen")
-            .font(.system(size: 85, weight: .semibold))
-            .foregroundColor(Color(hex: "#138bcc"))
-            .padding(.top, 50)
-    }
-}
-
 private struct ActivationCodeSection: View {
     let activationCode: String
     let qrURL: String
@@ -70,49 +69,68 @@ private struct ActivationCodeSection: View {
     let isRefreshing: Bool
 
     var body: some View {
-        VStack(spacing: 40) {
-            ZStack {
-                QRCodeView(text: qrURL)
-                    .frame(width: 450, height: 450)
-                    .opacity(isRefreshing ? 0.3 : 1.0)
+        ZStack {
+            // Card background
+            RoundedRectangle(cornerRadius: 28)
+                .fill(Color.clear)
+                .overlay(
+                    Image("activation_code_bg")
+                        .resizable()
+                        .scaledToFill()
+                        .clipShape(RoundedRectangle(cornerRadius: 28))
+                )
+            
+            VStack(spacing: 32) {
+                Text("Activate your TV screen")
+                    .font(.system(size: 50, weight: .bold))
+                    .foregroundColor(.white)
+                    .padding(.top, 16)
                 
-                // Refreshing overlay (auto-refresh in progress)
-                if isRefreshing {
-                    VStack(spacing: 20) {
-                        ProgressView()
-                            .scaleEffect(2)
-                            .progressViewStyle(CircularProgressViewStyle(tint: Color(hex: "#138bcc")))
-                        
-                        Text("Refreshing code...")
-                            .font(.system(size: 28, weight: .medium))
-                            .foregroundColor(Color(hex: "#505050"))
+                ZStack {
+                    QRCodeView(text: qrURL, showBackground: false)
+                        .frame(width: 320, height: 320)
+                        .opacity(isRefreshing ? 0.3 : 1.0)
+                        .padding(.vertical, 8)
+                    
+                    if isRefreshing {
+                        VStack(spacing: 12) {
+                            ProgressView()
+                                .scaleEffect(1.6)
+                                .progressViewStyle(CircularProgressViewStyle(tint: Color.white))
+                            
+                            Text("Refreshing code...")
+                                .font(.system(size: 24, weight: .medium))
+                                .foregroundColor(.white.opacity(0.9))
+                        }
                     }
                 }
-            }
-            
-            Spacer()
-            
-            // Activation code boxes
-            HStack(spacing: 20) {
-                ForEach(Array(activationCode.enumerated()), id: \.offset) { _, char in
-                    Text(String(char))
-                        .font(.system(size: 60, weight: .semibold))
-                        .foregroundColor(isRefreshing ? Color.gray : Color(hex: "#505050"))
-                        .frame(width: 100, height: 100)
-                        .background(
-                            RoundedRectangle(cornerRadius: 20)
-                                .stroke(isRefreshing ? Color.gray.opacity(0.3) : Color.gray.opacity(0.6), lineWidth: 4)
-                        )
+                
+                // Activation code boxes
+                HStack(spacing: 16) {
+                    ForEach(Array(activationCode.enumerated()), id: \.offset) { _, char in
+                        Text(String(char))
+                            .font(.system(size: 44, weight: .semibold))
+                            .foregroundColor(.black.opacity(0.75))
+                            .frame(width: 72, height: 72)
+                            .background(
+                                RoundedRectangle(cornerRadius: 14)
+                                    .stroke(Color.black.opacity(0.35), lineWidth: 3)
+                            )
+                    }
+                }
+                .padding(.bottom, 20)
+                
+                // Countdown timer (visible when not refreshing)
+                if !isRefreshing {
+                    Text("Code expires in \(formatTime(timeRemaining))")
+                        .font(.system(size: 22, weight: .medium))
+                        .foregroundColor(timeRemaining < 60 ? .red : Color.black.opacity(0.6))
+                        .padding(.bottom, 8)
                 }
             }
-            
-            // Countdown timer (hidden during refresh)
-            if !isRefreshing {
-                Text("Code expires in \(formatTime(timeRemaining))")
-                    .font(.system(size: 22))
-                    .foregroundColor(timeRemaining < 60 ? .red : Color(hex: "#505050"))
-            }
+            .padding(.horizontal, 36)
         }
+        .frame(width: 820, height: 650)
     }
     
     private func formatTime(_ seconds: Int) -> String {
@@ -124,37 +142,55 @@ private struct ActivationCodeSection: View {
 
 private struct ActivationInstructionsSection: View {
     var body: some View {
-        VStack(alignment: .leading, spacing: 40) {
+        VStack(alignment: .leading, spacing: 28) {
             VStack(alignment: .leading, spacing: 5) {
                 Text("QR Method:")
-                    .font(.system(size: 35, weight: .medium))
-                    .foregroundColor(Color(hex: "#505050"))
+                    .font(.system(size: 40, weight: .semibold))
+                    .foregroundColor(Color(hex: "#138bcc"))
 
                 Group {
-                    Text("- Open your phone’s camera app")
-                    Text("- Log-in to website using credentials provided by vendor")
-                    Text("- Choose the hospital / clinic where TV is installed")
-                    Text("- Select correct TV screen from list by matching Department & Location")
+                    bullet("Open your phone’s camera app")
+                    bullet("Log-in to website using credentials provided by vendor")
+                    bullet("Choose the hospital / clinic where TV is installed")
+                    bullet("Select correct TV screen from list by matching Department & Location")
                 }
-                .font(.system(size: 25))
+                .font(.system(size: 26))
+                .lineSpacing(4)
+                .multilineTextAlignment(.leading)
                 .foregroundColor(Color(hex: "#505050"))
             }
 
             VStack(alignment: .leading, spacing: 5) {
                 Text("Code Method:")
-                    .font(.system(size: 35, weight: .medium))
-                    .foregroundColor(Color(hex: "#505050"))
+                    .font(.system(size: 40, weight: .semibold))
+                    .foregroundColor(Color(hex: "#138bcc"))
 
                 Group {
-                    Text("- Goto https://spark.doceree.com")
-                    Text("- Login using credentials provided by vendor")
-                    Text("- Choose the hospital / clinic where TV is installed")
-                    Text("- Select correct TV screen from list by matching Department & Location")
-                    Text("- Enter the 6 digit code shown on this screen")
+                    bullet("Goto https://spark.doceree.com")
+                    bullet("Login using credentials provided by vendor")
+                    bullet("Choose the hospital / clinic where TV is installed")
+                    bullet("Select correct TV screen from list by matching Department & Location")
+                    bullet("Enter the 6 digit code shown on this screen")
                 }
-                .font(.system(size: 25))
+                .font(.system(size: 26))
+                .lineSpacing(4)
+                .multilineTextAlignment(.leading)
                 .foregroundColor(Color(hex: "#505050"))
             }
+        }
+        .frame(minWidth: 520, maxWidth: 640, alignment: .leading)
+    }
+    
+    // Keep bullets aligned across wrapped lines
+    private func bullet(_ text: String) -> some View {
+        HStack(alignment: .top, spacing: 8) {
+            Text("•")
+                .font(.system(size: 26, weight: .bold))
+            Text(text)
+                .font(.system(size: 26))
+                .lineSpacing(4)
+                .multilineTextAlignment(.leading)
+                .fixedSize(horizontal: false, vertical: true)
         }
     }
 }
@@ -164,7 +200,10 @@ private struct ActivationFooter: View {
         Text("Note: This app is developed for healthcare organizations and their trusted vendor partners, this application provides centralized control of content displayed on facility TVs. For authorized use only.")
             .font(.system(size: 18))
             .foregroundColor(Color(hex: "#505050"))
-            .padding(.bottom, 20)
+            .multilineTextAlignment(.center)
+            .frame(maxWidth: .infinity, alignment: .center)
+            .padding(.horizontal, 60)
+            .padding(.bottom, 0)
     }
 }
 
