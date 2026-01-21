@@ -23,8 +23,8 @@ final class APIService {
         request.httpMethod = "POST"
         request.setValue("application/json", forHTTPHeaderField: "Content-Type")
         request.setValue("fdd74745-a0ed-440c-ad10-3815d659a599", forHTTPHeaderField: "x-api-key")
-        let deviceId = await UIDevice.current.identifierForVendor?.uuidString ?? UUID().uuidString
-        request.setValue(deviceId, forHTTPHeaderField: "x-dev-id")
+        let deviceCode = await AppRootViewModel.getSavedDeviceCode() ?? ""
+        request.setValue(deviceCode, forHTTPHeaderField: "x-dev-id")
         
         // Get the secureKey from activation (required by API - sent in header)
         let secureKey = await AppRootViewModel.getSavedSecureKey() ?? ""
@@ -43,7 +43,7 @@ final class APIService {
             print("📤 API Request: \(url)")
             print("📤 Payload: reqNum=\(reqNum)")
             print("📤 Header X-Requested-With: \(secureKey) (length: \(secureKey.count))")
-            print("📤 Header x-dev-id: \(deviceId)")
+            print("📤 Header x-dev-id: \(deviceCode)")
         
         if let raw = String(data: data, encoding: .utf8) {
             print("📥 Raw quest response: \(raw)")
