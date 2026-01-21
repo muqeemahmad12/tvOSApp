@@ -505,6 +505,8 @@
 				INFOPLIST_KEY_LSApplicationCategoryType = "public.app-category.healthcare-fitness";
 				INFOPLIST_KEY_SENTRY_DSN = "https://c353fdf8cb6dc0e392e953bd771f6260@o4510509371228160.ingest.us.sentry.io/4510509381582848";
 				INFOPLIST_KEY_SENTRY_ENVIRONMENT = Dev;
+				INFOPLIST_KEY_TVTopShelfImage_TVTopShelfPrimaryImage = loading_screen;
+				INFOPLIST_KEY_TVTopShelfImage_TVTopShelfPrimaryImageWide = loading_screen;
 				INFOPLIST_KEY_UILaunchScreen_Generation = YES;
 				INFOPLIST_KEY_UIUserInterfaceStyle = Automatic;
 				LD_RUNPATH_SEARCH_PATHS = (
@@ -541,6 +543,8 @@
 				INFOPLIST_KEY_LSApplicationCategoryType = "public.app-category.healthcare-fitness";
 				INFOPLIST_KEY_SENTRY_DSN = "https://c353fdf8cb6dc0e392e953bd771f6260@o4510509371228160.ingest.us.sentry.io/4510509381582848";
 				INFOPLIST_KEY_SENTRY_ENVIRONMENT = Prod;
+				INFOPLIST_KEY_TVTopShelfImage_TVTopShelfPrimaryImage = loading_screen;
+				INFOPLIST_KEY_TVTopShelfImage_TVTopShelfPrimaryImageWide = loading_screen;
 				INFOPLIST_KEY_UILaunchScreen_Generation = YES;
 				INFOPLIST_KEY_UIUserInterfaceStyle = Automatic;
 				LD_RUNPATH_SEARCH_PATHS = (
