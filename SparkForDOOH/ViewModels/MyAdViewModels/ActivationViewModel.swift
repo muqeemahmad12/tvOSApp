@@ -24,7 +24,7 @@ final class ActivationViewModel: ObservableObject {
     
     private var expirationTimer: Timer?
     private var countdownTimer: Timer?
-    private let codeExpirationTime: TimeInterval = 5 * 60  // 5 minutes (for testing, change to 15 * 60 for production)
+    private let codeExpirationTime: TimeInterval = 15 * 60 // 15 minutes
     
     @MainActor deinit {
         stopTimers()
