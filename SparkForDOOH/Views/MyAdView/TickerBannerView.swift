@@ -114,7 +114,7 @@ struct HospitalLogoView: View {
                 Image(uiImage: logo)
                     .resizable()
                     .aspectRatio(contentMode: .fit)
-                    .frame(height: 320)  // Match screenshot size
+                    .frame(height: 80)  // Further reduced to 25% of original
                     .clipShape(RoundedRectangle(cornerRadius: 16))
                     .shadow(color: .black.opacity(0.3), radius: 8, x: 0, y: 4)
             }

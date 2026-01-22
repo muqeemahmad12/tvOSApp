@@ -26,8 +26,10 @@ final class ActivationViewModel: ObservableObject {
     private var countdownTimer: Timer?
     private let codeExpirationTime: TimeInterval = 15 * 60 // 15 minutes
     
-    @MainActor deinit {
-        stopTimers()
+    deinit {
+        DispatchQueue.main.async { [weak self] in
+            self?.stopTimers()
+        }
     }
     
     private func stopTimers() {
