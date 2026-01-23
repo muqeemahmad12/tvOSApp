@@ -19,7 +19,7 @@ struct TickerBannerView: View {
     @State private var currentTime: String = ""
     @StateObject private var weatherService = WeatherService.shared
     
-    private let tickerHeight: CGFloat = 80
+    private let tickerHeight: CGFloat = 56  // reduced ~30%
     private let logoSize: CGFloat = 80
     
     // Timer for updating clock
@@ -57,8 +57,8 @@ struct TickerBannerView: View {
             if let message = tickerMessage, !message.isEmpty {
                 TickerScrollView(message: message, height: tickerHeight)
                     .clipShape(Capsule())
-                    .padding(.horizontal, 40)
-                    .padding(.bottom, 30)
+                    .padding(.horizontal, 28) // reduced ~30%
+                    .padding(.bottom, 21)     // reduced ~30%
             }
         }
         .onAppear {
@@ -114,9 +114,18 @@ struct HospitalLogoView: View {
                 Image(uiImage: logo)
                     .resizable()
                     .aspectRatio(contentMode: .fit)
-                    .frame(height: 80)  // Further reduced to 25% of original
-                    .clipShape(RoundedRectangle(cornerRadius: 16))
-                    .shadow(color: .black.opacity(0.3), radius: 8, x: 0, y: 4)
+                    .frame(height: 80)
+                        .padding(.horizontal, 20)
+                        .padding(.vertical, 12)
+                        .background(
+                        RoundedRectangle(cornerRadius: 12, style: .continuous)
+                            .fill(Color.black.opacity(0.5))
+                            .overlay(
+                                RoundedRectangle(cornerRadius: 12, style: .continuous)
+                                    .stroke(Color.black.opacity(0.5), lineWidth: 1)
+                            )
+                        )
+                    .shadow(color: .black.opacity(0.2), radius: 4, x: 0, y: 2)
             }
             // If no logo URL provided, show nothing (no default icon)
         }
@@ -160,15 +169,15 @@ struct TimeWeatherView: View {
             }
         }
         .padding(.horizontal, 20)
-        .padding(.vertical, 12)
-        .background(
-            Capsule()
-                .fill(Color.white.opacity(0.2))
+                .padding(.vertical, 12)
                 .background(
                     Capsule()
-                        .stroke(Color.white.opacity(0.3), lineWidth: 1)
+                        .fill(Color.black.opacity(0.5))
+                        .background(
+                            Capsule()
+                                .stroke(Color.black.opacity(0.5), lineWidth: 1)
+                        )
                 )
-        )
         .shadow(color: .black.opacity(0.2), radius: 4, x: 0, y: 2)
     }
 }
@@ -188,10 +197,10 @@ struct TickerScrollView: View {
             ZStack {
                 // Capsule transparent background matching top-right style
                 Capsule()
-                    .fill(Color.white.opacity(0.2))
+                    .fill(Color.black.opacity(0.5))
                     .overlay(
                         Capsule()
-                            .stroke(Color.white.opacity(0.3), lineWidth: 1)
+                            .stroke(Color.black.opacity(0.5), lineWidth: 1)
                     )
                     .shadow(color: .black.opacity(0.2), radius: 4, x: 0, y: 2)
                 

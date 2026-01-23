@@ -60,7 +60,7 @@ struct AppConfig {
         sentryDSN: String? = nil,
         apiKey: String? = nil,
         adsCacheMaxBytes: UInt64? = nil,
-        playlistRepeatInterval: TimeInterval = 2 * 60,
+        playlistRepeatInterval: TimeInterval = 10 * 60,
         activationTestTransitionDelay: TimeInterval = 10,
         activationAutoAdvanceForDebug: Bool = false
     ) {
