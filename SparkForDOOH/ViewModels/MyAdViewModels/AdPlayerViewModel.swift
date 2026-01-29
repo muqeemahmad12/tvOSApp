@@ -468,7 +468,7 @@ private extension AdPlayerViewModel {
     /// Fallback timer if no video (10 seconds for image groups).
     func startGroupTimer() {
         timer?.invalidate()
-        let duration = 10
+        let duration = 20
         timer = Timer.scheduledTimer(withTimeInterval: TimeInterval(duration), repeats: false) { [weak self] _ in
             Task { @MainActor in
                 // Track view complete for all images in the group
