@@ -22,6 +22,8 @@ final class AdPlayerViewModel: ObservableObject {
     @Published var preloadProgress: Double = 0.0
     @Published var errorMessage: String?
     @Published var contentOpacity: Double = 1.0  // For crossfade transitions
+    /// Controls when overlay UI (ticker/time/logo) should appear.
+    @Published var isPlayerReadyForOverlay = false
 
     // MARK: - Private state
     fileprivate var pendingGroups: [AdSequenceGroup] = []
@@ -116,6 +118,7 @@ extension AdPlayerViewModel {
 
         // Set preloading flag BEFORE Task to prevent race conditions
         isPreloading = true
+        isPlayerReadyForOverlay = false
         
         Task {
             groupedAds = await filterUnplayableAds(newAds: groups) // remove bad videos before playback
@@ -131,6 +134,7 @@ extension AdPlayerViewModel {
         NotificationCenter.default.removeObserver(self)
         timer?.invalidate()
         syncTimer?.invalidate()
+        isPlayerReadyForOverlay = false
     }
     
     /// Handle empty playlist by falling back to safe content
@@ -331,6 +335,7 @@ private extension AdPlayerViewModel {
         let group = groupedAds[currentIndex]
         currentGroup = group
         print("▶️ Playing group \(group.sequence) — \(group.ii.count) ads")
+        isPlayerReadyForOverlay = true
         
         // Update heartbeat with current playback status
         let currentAdId = group.ii.first?.itemid ?? ""

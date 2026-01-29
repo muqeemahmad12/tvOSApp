@@ -93,7 +93,7 @@ struct AdPlayerView: View {
             }
             
             // MARK: - Ticker/Banner Overlay (with time display)
-            if !viewModel.isPreloading {
+            if viewModel.isPlayerReadyForOverlay {
                 TickerBannerView(
                     tickerMessage: tickerMessage,
                     logoUrl: logoUrl,
