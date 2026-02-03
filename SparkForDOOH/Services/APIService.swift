@@ -65,6 +65,7 @@ final class APIService {
             do {
                 let decoded = try JSONDecoder().decode(ItemSeqInfoResponse.self, from: data)
                 let groups = decoded.groupedAds
+            NetworkMonitor.shared.markOnline(reason: "QuestSuccess")
                 print("✅ API Success — Total Groups: \(groups.count)")
                 for group in groups {
                     print("▶️ Sequence \(group.sequence): \(group.ii.count) ads")

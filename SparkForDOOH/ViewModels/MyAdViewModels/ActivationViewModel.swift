@@ -148,6 +148,13 @@ final class ActivationViewModel: ObservableObject {
     }
 
     private func buildActivationPayload() -> ActivationRequest {
+        let storage = Self.getStorageInfo()
+        let totalStorage = storage?.totalGB ?? Self.getAvailableStorage()
+        let freeStorage = storage?.freeGB ?? Self.getAvailableStorage()
+        let ram = Self.getTotalRAM()
+        
+        print(String(format: "🧠 RAM total: %.2f GB | 💾 Storage total: %.2f GB, free: %.2f GB", ram, totalStorage, freeStorage))
+        
         let payload = ActivationRequest(
             deviceId: UIDevice.current.identifierForVendor?.uuidString ?? UUID().uuidString,
             resolutionWidth: Int(UIScreen.main.bounds.width * UIScreen.main.scale),
@@ -160,8 +167,8 @@ final class ActivationViewModel: ObservableObject {
             manufacturer: "Apple Inc.",
             latitude: 0.0,   // Apple TV has no GPS
             longitude: 0.0,
-            ramGb: Self.getTotalRAM(),
-            romGb: Self.getAvailableStorage()
+            ramGb: ram,
+            romGb: totalStorage
         )
         return payload
     }
@@ -220,6 +227,16 @@ final class ActivationViewModel: ObservableObject {
 
     static func getTotalRAM() -> Double {
         return Double(ProcessInfo.processInfo.physicalMemory) / 1024 / 1024 / 1024
+    }
+
+    static func getStorageInfo() -> (totalGB: Double, freeGB: Double)? {
+        if let attrs = try? FileManager.default.attributesOfFileSystem(forPath: NSHomeDirectory()),
+           let total = attrs[.systemSize] as? NSNumber,
+           let free = attrs[.systemFreeSize] as? NSNumber {
+            let gb = 1024.0 * 1024.0 * 1024.0
+            return (total.doubleValue / gb, free.doubleValue / gb)
+        }
+        return nil
     }
 
     static func getAvailableStorage() -> Double {

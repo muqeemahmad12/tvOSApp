@@ -13,6 +13,7 @@ struct ActivationView: View {
     var onActivated: () -> Void = {}
 
     @StateObject private var vm = ActivationViewModel()
+    @ObservedObject private var networkMonitor = NetworkMonitor.shared
 
     var body: some View {
         ZStack {
@@ -39,7 +40,7 @@ struct ActivationView: View {
                 .padding(.horizontal, 60)
                 
                 Spacer(minLength: 40)
-                
+
                 ActivationFooter()
                     .padding(.bottom, 30)
             }
@@ -55,6 +56,12 @@ struct ActivationView: View {
             if activated {
                 print("✅ Device activated - transitioning to player")
                 onActivated()
+            }
+        }
+        .onChange(of: networkMonitor.isConnected) { connected in
+            if connected && !vm.isActivated && !vm.isLoading {
+                print("🌐 Network restored during activation - retrying activation/poll")
+                vm.activateDevice()
             }
         }
     }
@@ -107,17 +114,17 @@ private struct ActivationCodeSection: View {
                 
                 // Activation code boxes
                 HStack(spacing: 16) {
-                    ForEach(Array(activationCode.enumerated()), id: \.offset) { _, char in
-                        Text(String(char))
+                ForEach(Array(activationCode.enumerated()), id: \.offset) { _, char in
+                    Text(String(char))
                             .font(.system(size: 44, weight: .semibold))
                             .foregroundColor(.black.opacity(0.75))
                             .frame(width: 72, height: 72)
-                            .background(
+                        .background(
                                 RoundedRectangle(cornerRadius: 14)
                                     .stroke(Color.black.opacity(0.35), lineWidth: 3)
-                            )
-                    }
+                        )
                 }
+            }
                 .padding(.bottom, 20)
                 
                 // Countdown timer (visible when not refreshing)

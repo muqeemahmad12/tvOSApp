@@ -291,6 +291,7 @@ private extension AdPlayerViewModel {
     /// Remove unplayable video items & empty groups.
     func filterUnplayableAds(newAds: [AdSequenceGroup]) async -> [AdSequenceGroup] {
         print("🔎 Validating playable videos before starting playback…")
+        
         var newGroups: [AdSequenceGroup] = []
 
         for group in newAds {
@@ -303,18 +304,14 @@ private extension AdPlayerViewModel {
                     continue
                 }
 
-                // For video, require a local or remote URL
-                guard let candidateURL = localURLs[ad.itemurl] ?? URL(string: ad.itemurl) else {
+                // For video, require a minimally valid URL. Do NOT drop videos based on playability checks here;
+                // rely on AVPlayer at runtime to attempt playback, even if offline during preload.
+                guard URL(string: ad.itemurl) != nil || localURLs[ad.itemurl] != nil else {
                     print("❌ Removing (invalid URL):", ad.itemurl)
                     continue
                 }
 
-                let playable = await isVideoPlayable(url: candidateURL)
-                if playable {
-                    keptAds.append(ad)
-                } else {
-                    print("❌ Removing unplayable video:", ad.itemurl)
-                }
+                keptAds.append(ad)
             }
 
             if !keptAds.isEmpty {

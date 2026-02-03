@@ -35,6 +35,7 @@ final class ActivationPollAPI {
         guard decoded.code == 200, let pollData = decoded.data else {
                 throw AppError.server(message: decoded.message)
         }
+        NetworkMonitor.shared.markOnline(reason: "ActivationPollSuccess")
         
         print("pollData: ", pollData)
         return pollData
@@ -60,7 +61,7 @@ final class ActivationPollAPI {
             do {
             let result = try await pollOnce(deviceCode: deviceCode)
             let status = result.status.uppercased()
-            
+
             if status == "ACTIVE" || status == "ACTIVATED" {
                 return result
             }

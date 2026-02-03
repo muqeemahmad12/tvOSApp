@@ -184,6 +184,7 @@ final class HeartbeatAPI {
                     print("💓 Parsed: \(heartbeatResponse)")
                 }
                 print("💓 Raw Response: \(raw)")
+                NetworkMonitor.shared.markOnline(reason: "HeartbeatSuccess")
                 return true
             } else {
                 let raw = String(data: data, encoding: .utf8) ?? ""

@@ -19,6 +19,11 @@ final class AdPlaylistViewModel: ObservableObject {
     @Published var isUsingCachedPlaylist = false          // True if using offline cache
     
     private let cacheService = PlaylistCacheService.shared
+
+    init() {
+        // Always hydrate from cache immediately so offline launches can play.
+        loadCachedPlaylistIfAvailable()
+    }
     
     /// Load cached playlist immediately on init (for fast launch)
     func loadCachedPlaylistIfAvailable() {

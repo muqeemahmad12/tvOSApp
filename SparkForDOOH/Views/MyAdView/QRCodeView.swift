@@ -35,13 +35,13 @@ struct QRCodeView: View {
     
     private var qrImageView: some View {
         Group {
-            if let image = generateQRCode(from: text) {
-                Image(uiImage: image)
-                    .interpolation(.none)
-                    .resizable()
-                    .scaledToFit()
-            } else {
-                Color.red
+        if let image = generateQRCode(from: text) {
+            Image(uiImage: image)
+                .interpolation(.none)
+                .resizable()
+                .scaledToFit()
+        } else {
+            Color.red
             }
         }
     }

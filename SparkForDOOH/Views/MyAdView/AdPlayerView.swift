@@ -11,7 +11,6 @@ import UIKit
 
 struct AdPlayerView: View {
     @StateObject private var viewModel = AdPlayerViewModel()
-    @StateObject private var networkMonitor = NetworkMonitor.shared
     @ObservedObject var listVM: AdPlaylistViewModel
     @State private var videoFullScreen = false
     @State private var tickerMessage: String? = nil
@@ -101,12 +100,6 @@ struct AdPlayerView: View {
                 )
             }
             
-            // MARK: - No Internet Overlay (non-intrusive)
-            if !networkMonitor.isConnected {
-                NoInternetOverlay()
-                    .transition(.opacity)
-                    .animation(.easeInOut(duration: 0.3), value: networkMonitor.isConnected)
-            }
         }
         .ignoresSafeArea() // Ensure the entire player fills the tvOS window
         .accessibilityIdentifier("AdPlayerRootView")

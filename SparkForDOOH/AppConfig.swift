@@ -19,7 +19,7 @@ struct AppConfig {
 
     /// Current environment name (Dev, QA, Prod).
     let environment: String
-    
+
     /// Base URL for DRS / playlist APIs.
     let drsBaseURL: URL
 
