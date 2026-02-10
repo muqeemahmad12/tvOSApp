@@ -82,8 +82,10 @@ extension AdPlayerViewModel {
     func startPlayback(with groups: [AdSequenceGroup]) {
         // Handle empty playlist with safe content fallback
         if groups.isEmpty {
-            print("⚠️ Empty playlist received - attempting safe content fallback")
-            handleEmptyPlaylistFallback()
+            print("⚠️ Empty playlist received - waiting for content (no playback)")
+            groupedAds = []
+            currentIndex = 0
+            isPreloading = false
             return
         }
         

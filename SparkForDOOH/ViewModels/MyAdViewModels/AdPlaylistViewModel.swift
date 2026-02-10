@@ -56,7 +56,6 @@ final class AdPlaylistViewModel: ObservableObject {
                 
                 // Cache the playlist for offline use
                 cacheService.savePlaylist(groups)
-                
             } catch {
                 let appError = AppError.from(error)
                 errorMessage = appError.localizedDescription

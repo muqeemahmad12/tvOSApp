@@ -37,7 +37,7 @@ Please contact your Facility Manager/Administrator to assign or schedule the con
                         .lineSpacing(4)
                         .multilineTextAlignment(.leading)
                         .frame(maxWidth: 640, alignment: .leading)
-                        .padding(.top, 12)
+                        .padding(.top, 62) // increased gap by 50px
                 }
                 .frame(maxWidth: .infinity, alignment: .leading)
                 .padding(.leading, 60)
@@ -48,7 +48,7 @@ Please contact your Facility Manager/Administrator to assign or schedule the con
                 Image("waiting_for_content")
                     .resizable()
                     .aspectRatio(contentMode: .fit)
-                    .frame(maxWidth: 520, maxHeight: 420)
+                    .frame(maxWidth: 550, maxHeight: 466) // ~1130x958 aspect (~1.18:1)
                     .padding(.trailing, 80)
             }
             .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .center)
