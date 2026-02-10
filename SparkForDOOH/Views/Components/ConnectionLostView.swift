@@ -9,64 +9,52 @@ import SwiftUI
 import UIKit
 
 struct ConnectionLostView: View {
-    private var connectionImage: Image {
-        if let uiImage = UIImage(named: "connection_lost") {
-            return Image(uiImage: uiImage)
-        }
-        return Image(systemName: "wifi.slash")
-    }
-    
     var body: some View {
         ZStack {
-            // Soft radial background similar to provided reference
-            RadialGradient(
-                gradient: Gradient(colors: [
-                    Color(red: 0.86, green: 0.94, blue: 1.0),
-                    Color.white
-                ]),
-                center: .center,
-                startRadius: 100,
-                endRadius: 900
-            )
-            .overlay(
-                Circle()
-                    .stroke(Color.blue.opacity(0.08), lineWidth: 140)
-                    .scaleEffect(1.1)
-                    .offset(x: -40, y: 120)
-            )
-            .ignoresSafeArea()
+            // Background image
+            Image("registration_bg")
+                .resizable()
+                .scaledToFill()
+                .ignoresSafeArea()
             
-            HStack(alignment: .center, spacing: 40) {
-                VStack(alignment: .leading, spacing: 20) {
+            HStack(alignment: .center, spacing: 32) {
+                VStack(alignment: .leading, spacing: 16) {
                     Text("Connection Lost")
-                        .font(.system(size: 50, weight: .bold, design: .default))
-                        .foregroundColor(Color(red: 0.0, green: 0.46, blue: 0.93))
+                        .font(.system(size: 65, weight: .semibold, design: .default))
+                        .foregroundColor(Color(red: 0.0, green: 0.45, blue: 0.91))
                     
                     Text("This screen is currently offline and can’t download or play updated content.")
-                        .font(.system(size: 24, weight: .regular))
-                        .foregroundColor(Color(red: 0.20, green: 0.22, blue: 0.24))
+                        .font(.system(size: 30, weight: .regular))
+                        .foregroundColor(Color(red: 0.32, green: 0.36, blue: 0.41))
                         .lineSpacing(4)
+                        .multilineTextAlignment(.leading)
+                        .lineLimit(2)
+                        .frame(maxWidth: 520, alignment: .leading)
+                        .padding(.trailing, 8)
+                        .padding(.bottom, 100) // extra gap before description
                     
                     Text("""
 Please check power and internet (Wi-Fi/Ethernet) for this device. If the network is stable, restart the screen/app and confirm the connection is restored. If the issue continues, contact your IT to verify firewall/network access and reconnect this screen.
 """)
-                        .font(.system(size: 22, weight: .regular))
-                        .foregroundColor(Color(red: 0.24, green: 0.25, blue: 0.27))
+                        .font(.system(size: 30, weight: .regular))
+                        .foregroundColor(Color(red: 0.32, green: 0.36, blue: 0.41))
                         .lineSpacing(4)
-                        .frame(maxWidth: 620, alignment: .leading)
+                        .multilineTextAlignment(.leading)
+                        .frame(maxWidth: 700, alignment: .leading)
                 }
+                .frame(maxWidth: .infinity, alignment: .leading)
                 .padding(.leading, 60)
                 
                 Spacer()
                 
-                connectionImage
+                Image("connection_lost")
                     .resizable()
                     .aspectRatio(contentMode: .fit)
-                    .frame(maxWidth: 460, maxHeight: 360)
-                    .foregroundColor(Color(red: 0.0, green: 0.46, blue: 0.93))
-                    .padding(.trailing, 60)
+                    .frame(maxWidth: 560, maxHeight: 438) // keeps 1122x876 aspect (~1.28:1)
+                    .padding(.trailing, 80)
             }
             .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .center)
+            .padding(.top, -100) // shift entire stack upward
         }
     }
 }
