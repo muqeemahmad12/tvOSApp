@@ -34,6 +34,15 @@ struct RootView: View {
                 ConnectionLostView()
                     .transition(.opacity)
             }
+
+            // Show waiting screen when online but no playlist/content is assigned yet.
+            if appVM.phase == .playing,
+               networkMonitor.isConnected,
+               adListVM.groupedAds.isEmpty,
+               adListVM.isLoading == false {
+                WaitingForContentView()
+                    .transition(.opacity)
+            }
         }
         .onAppear {
             // If already activated (from previous launch), load cached playlist first for fast start
