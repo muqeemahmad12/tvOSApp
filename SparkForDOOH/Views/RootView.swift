@@ -39,7 +39,8 @@ struct RootView: View {
             if appVM.phase == .playing,
                networkMonitor.isConnected,
                adListVM.groupedAds.isEmpty,
-               adListVM.isLoading == false {
+               adListVM.isLoading == false,
+               adListVM.isUsingCachedPlaylist == false {
                 WaitingForContentView()
                     .transition(.opacity)
             }

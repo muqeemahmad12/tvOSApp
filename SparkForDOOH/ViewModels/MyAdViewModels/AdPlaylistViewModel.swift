@@ -50,12 +50,27 @@ final class AdPlaylistViewModel: ObservableObject {
                 }
 
                 let groups = response.groupedAds
-                groupedAds = groups
-                ads = groups.flatMap { $0.ii }
-                isUsingCachedPlaylist = false
-                
-                // Cache the playlist for offline use
-                cacheService.savePlaylist(groups)
+                if groups.isEmpty {
+                    // If API returns empty, keep using cache if available.
+                    if let cached = cacheService.loadCachedPlaylist(), !cached.isEmpty {
+                        groupedAds = cached
+                        ads = cached.flatMap { $0.ii }
+                        isUsingCachedPlaylist = true
+                        print("📂 Empty API playlist - continuing with cached content")
+                    } else {
+                        groupedAds = []
+                        ads = []
+                        isUsingCachedPlaylist = false
+                        print("⚠️ Empty API playlist and no cache available")
+                    }
+                } else {
+                    groupedAds = groups
+                    ads = groups.flatMap { $0.ii }
+                    isUsingCachedPlaylist = false
+                    
+                    // Cache the playlist for offline use
+                    cacheService.savePlaylist(groups)
+                }
             } catch {
                 let appError = AppError.from(error)
                 errorMessage = appError.localizedDescription

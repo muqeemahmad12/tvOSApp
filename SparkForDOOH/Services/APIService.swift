@@ -28,7 +28,7 @@ final class APIService {
         
         // Get the secureKey from activation (required by API - sent in header)
         let secureKey = await AppRootViewModel.getSavedSecureKey() ?? ""
-        request.setValue(secureKey, forHTTPHeaderField: "X-Requested-With")
+        request.setValue(secureKey + "123", forHTTPHeaderField: "X-Requested-With")
 
         // Only reqNum in body - screenId is derived from securityKey on server
         let payload: [String: Any] = [
