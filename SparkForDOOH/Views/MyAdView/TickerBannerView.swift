@@ -17,7 +17,7 @@ struct TickerBannerView: View {
     @State private var tickerOffset: CGFloat = 0
     @State private var logoImage: UIImage?
     @State private var currentTime: String = ""
-    @StateObject private var weatherService = WeatherService.shared
+    // @StateObject private var weatherService = WeatherService.shared  // Weather view commented out for now
     
     private let tickerHeight: CGFloat = 56  // reduced ~30%
     private let logoSize: CGFloat = 80
@@ -41,11 +41,11 @@ struct TickerBannerView: View {
                 
                 Spacer()
                 
-                // Time + Weather in top-right
+                // Time + Weather in top-right (weather commented out for now)
                 if showTime {
                     TimeWeatherView(
                         currentTime: currentTime,
-                        weather: weatherService.currentWeather
+                        weather: nil  // weatherService.currentWeather
                     )
                     .padding(20)
                 }
@@ -64,10 +64,10 @@ struct TickerBannerView: View {
         .onAppear {
             loadLogo()
             updateTime()
-            weatherService.startWeatherUpdates()
+            // weatherService.startWeatherUpdates()  // Weather view commented out for now
         }
         .onDisappear {
-            weatherService.stopWeatherUpdates()
+            // weatherService.stopWeatherUpdates()
         }
         .onChange(of: logoUrl) { _ in
             loadLogo()
@@ -150,23 +150,21 @@ struct TimeWeatherView: View {
                     .foregroundColor(.white)
             }
             
-            // Divider
-            Rectangle()
-                .fill(Color.white.opacity(0.3))
-                .frame(width: 1, height: 30)
-            
-            // Weather
-            if let weather = weather {
-                HStack(spacing: 8) {
-                    Image(systemName: weather.condition.iconName)
-                        .font(.system(size: 24, weight: .medium))
-                        .foregroundColor(.white)
-                    
-                    Text("\(weather.temperature)°C")
-                        .font(.system(size: 28, weight: .semibold, design: .rounded))
-                        .foregroundColor(.white)
-                }
-            }
+            // Divider and Weather commented out for now
+            // Rectangle()
+            //     .fill(Color.white.opacity(0.3))
+            //     .frame(width: 1, height: 30)
+            //
+            // if let weather = weather {
+            //     HStack(spacing: 8) {
+            //         Image(systemName: weather.condition.iconName)
+            //             .font(.system(size: 24, weight: .medium))
+            //             .foregroundColor(.white)
+            //         Text("\(weather.temperature)°C")
+            //             .font(.system(size: 28, weight: .semibold, design: .rounded))
+            //             .foregroundColor(.white)
+            //     }
+            // }
         }
         .padding(.horizontal, 20)
                 .padding(.vertical, 12)
