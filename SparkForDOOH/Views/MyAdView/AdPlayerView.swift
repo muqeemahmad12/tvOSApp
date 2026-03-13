@@ -12,6 +12,7 @@ import UIKit
 struct AdPlayerView: View {
     @StateObject private var viewModel = AdPlayerViewModel()
     @ObservedObject var listVM: AdPlaylistViewModel
+    @Environment(\.scenePhase) private var scenePhase
     @State private var videoFullScreen = false
     @State private var tickerMessage: String? = nil
     @State private var logoUrl: String? = nil
@@ -141,6 +142,12 @@ struct AdPlayerView: View {
         .onReceive(NotificationCenter.default.publisher(for: .tickerUpdated)) { _ in
             tickerMessage = AppRootViewModel.getSavedTickerMessage()
             logoUrl = AppRootViewModel.getSavedLogoUrl()
+        }
+        // Auto-resume playback when app becomes active (TV wake, resume from background)
+        .onChange(of: scenePhase) { phase in
+            if phase == .active {
+                viewModel.resumePlayback()
+            }
         }
     }
     

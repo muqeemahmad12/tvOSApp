@@ -141,6 +141,16 @@ extension AdPlayerViewModel {
         isPlayerReadyForOverlay = false
     }
     
+    /// Resume playback when app returns to foreground (e.g. TV wake, app resume).
+    /// Call from the view when scenePhase becomes .active.
+    func resumePlayback() {
+        guard !disablePreloadingAndValidation else { return }
+        if activePlayer != nil, currentGroup != nil {
+            activePlayer?.play()
+            print("▶️ Resumed playback after app became active")
+        }
+    }
+    
     /// Handle empty playlist by falling back to safe content
     private func handleEmptyPlaylistFallback() {
         isPlayingSafeContent = true
