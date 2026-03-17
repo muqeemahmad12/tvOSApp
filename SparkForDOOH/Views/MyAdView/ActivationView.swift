@@ -17,32 +17,36 @@ struct ActivationView: View {
 
     var body: some View {
         ZStack {
-            Image("registration_bg")
-                .resizable()
-                .scaledToFill()
-                .ignoresSafeArea()
-                .overlay(Color.white.opacity(0.0)) // keep original brightness, ensures no empty space
-            
-            VStack(spacing: 0) {
-                Spacer(minLength: 20)
-                
-                HStack(alignment: .top, spacing: 60) {
-                    ActivationCodeSection(
-                        activationCode: vm.activationCode,
-                        qrURL: vm.qrURL,
-                        timeRemaining: vm.timeRemaining,
-                        isRefreshing: vm.isCodeExpired
-                    )
-                    ActivationInstructionsSection()
-                        .padding(.top, 20)
-                    Spacer()
-                }
-                .padding(.horizontal, 60)
-                
-                Spacer(minLength: 40)
+            if vm.isActivationFailed {
+                ActivationFailedView()
+            } else {
+                Image("registration_bg")
+                    .resizable()
+                    .scaledToFill()
+                    .ignoresSafeArea()
+                    .overlay(Color.white.opacity(0.0)) // keep original brightness, ensures no empty space
 
-                ActivationFooter()
-                    .padding(.bottom, 30)
+                VStack(spacing: 0) {
+                    Spacer(minLength: 20)
+
+                    HStack(alignment: .top, spacing: 60) {
+                        ActivationCodeSection(
+                            activationCode: vm.activationCode,
+                            qrURL: vm.qrURL,
+                            timeRemaining: vm.timeRemaining,
+                            isRefreshing: vm.isCodeExpired
+                        )
+                        ActivationInstructionsSection()
+                            .padding(.top, 20)
+                        Spacer()
+                    }
+                    .padding(.horizontal, 60)
+
+                    Spacer(minLength: 40)
+
+                    ActivationFooter()
+                        .padding(.bottom, 30)
+                }
             }
         }
         .onAppear {

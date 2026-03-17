@@ -14,6 +14,7 @@ enum AppError: Error, LocalizedError {
     case decoding
     case invalidResponse
     case activationTimeout
+    case activationInactive
     case unknown
 
     var errorDescription: String? {
@@ -28,6 +29,8 @@ enum AppError: Error, LocalizedError {
             return "Received an invalid response from the server."
         case .activationTimeout:
             return "Activation is taking longer than expected. Please verify the code and try again."
+        case .activationInactive:
+            return "We couldn't link this screen to your facility. Please check your internet connection and verify the pairing code/QR scan on the web dashboard."
         case .unknown:
             return "Something went wrong. Please try again."
         }

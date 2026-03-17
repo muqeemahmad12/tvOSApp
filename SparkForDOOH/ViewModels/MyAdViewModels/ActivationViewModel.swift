@@ -19,6 +19,7 @@ final class ActivationViewModel: ObservableObject {
     @Published var errorMessage: String?
     @Published var isLoading = false
     @Published var isActivated = false  // Dedicated flag for activation complete
+    @Published var isActivationFailed = false  // True when poll returns INACTIVE
     @Published var isCodeExpired = false  // Shows refresh button after 15 min
     @Published var timeRemaining: Int = 15 * 60  // 15 minutes in seconds
     
@@ -61,13 +62,39 @@ final class ActivationViewModel: ObservableObject {
             }
         }
         
-        print("⏱️ Activation code expires in 15 minutes")
+        print("⏱️ Activation code expires in \(Int(codeExpirationTime / 60)) minutes")
     }
     
     private func handleCodeExpired() {
-        print("⏰ Activation code expired - auto-refreshing...")
-        // Auto-refresh the code without user interaction
-        refreshActivationCode()
+        stopTimers()
+        print("⏰ Activation code expired - checking status...")
+        Task { @MainActor in
+            do {
+                let data = try await ActivationPollAPI.shared.pollOnce(deviceCode: deviceCode)
+                let status = data.status.uppercased()
+                if status == "ACTIVE" || status == "ACTIVATED" {
+                    AppRootViewModel.saveActivation(
+                        secureKey: data.secureKey,
+                        deviceCode: deviceCode,
+                        tickerMessage: data.tickerMessage,
+                        logoUrl: data.logoUrl
+                    )
+                    print("📢 Activated on expiry check: \(data.status)")
+                    isActivated = true
+                } else {
+                    // PENDING or INACTIVE: show Activation Failed for 10 seconds, then refresh code
+                    isActivationFailed = true
+                    DispatchQueue.main.asyncAfter(deadline: .now() + 10) { [weak self] in
+                        Task { @MainActor in
+                            self?.isActivationFailed = false
+                            self?.refreshActivationCode()
+                        }
+                    }
+                }
+            } catch {
+                refreshActivationCode()
+            }
+        }
     }
     
     /// Refresh the activation code automatically
@@ -86,10 +113,25 @@ final class ActivationViewModel: ObservableObject {
         Task {
             do {
                 let payload = buildActivationPayload()
+                let activationURL = AppConfig.current.activationBaseURL.appendingPathComponent("v1/dooh/device/activation/request")
+                let encoder = JSONEncoder()
+                encoder.outputFormatting = [.prettyPrinted, .sortedKeys]
+                if let data = try? encoder.encode(payload), let json = String(data: data, encoding: .utf8) {
+                    print("📤 Activation request: \(activationURL.absoluteString)\n\(json)")
+                } else {
+                    print("📤 Activation request: \(activationURL.absoluteString)")
+                }
 
                 let result = try await ActivationAPI.shared.requestActivation(payload: payload)
                 
                 handleActivationResponse(result)
+                
+                // If backend returned INACTIVE, show activation failed
+                if checkIfInactive(result.status) {
+                    isActivationFailed = true
+                    isLoading = false
+                    return
+                }
                 
                 // Start 15-minute expiration timer
                 startExpirationTimer()
@@ -133,10 +175,16 @@ final class ActivationViewModel: ObservableObject {
                     )
                     print("📢 Ticker: \(data.tickerMessage ?? "none"), Logo: \(data.logoUrl ?? "none")")
                     isActivated = true
+                } else if checkIfInactive(data.status) {
+                    isActivationFailed = true
                 }
             } catch {
-                let appError = AppError.from(error)
-                self.errorMessage = appError.localizedDescription
+                if let appErr = error as? AppError, case .activationInactive = appErr {
+                    isActivationFailed = true
+                } else {
+                    let appError = AppError.from(error)
+                    self.errorMessage = appError.localizedDescription
+                }
             }
             self.isLoading = false
         }
@@ -145,6 +193,17 @@ final class ActivationViewModel: ObservableObject {
     private func checkIfActivated(_ status: String) -> Bool {
         let normalized = status.uppercased()
         return normalized == "ACTIVE" || normalized == "ACTIVATED"
+    }
+    
+    private func checkIfInactive(_ status: String) -> Bool {
+        return status.uppercased() == "INACTIVE"
+    }
+    
+    /// Clear activation-failed state and request a new activation code (e.g. after "Try again").
+    func retryActivation() {
+        isActivationFailed = false
+        errorMessage = nil
+        activateDevice()
     }
 
     private func buildActivationPayload() -> ActivationRequest {

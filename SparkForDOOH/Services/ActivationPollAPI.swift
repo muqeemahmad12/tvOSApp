@@ -13,6 +13,9 @@ final class ActivationPollAPI {
     static let shared = ActivationPollAPI()
     private init() {}
 
+    /// When true, poll always shows Activation Failed (INACTIVE) screen regardless of backend status.
+    private let showInactiveScreenOnly = false
+
     func pollOnce(deviceCode: String) async throws -> ActivationPollData {
         let base = AppConfig.current.activationBaseURL
         let url = base.appendingPathComponent("v1/dooh/device/activation/poll")
@@ -20,7 +23,13 @@ final class ActivationPollAPI {
         var req = URLRequest(url: url)
         req.httpMethod = "POST"
         req.setValue("application/json", forHTTPHeaderField: "Content-Type")
-        req.httpBody = try JSONEncoder().encode(["deviceCode": deviceCode])
+        let body = ["deviceCode": deviceCode]
+        req.httpBody = try JSONEncoder().encode(body)
+        if let bodyString = String(data: req.httpBody ?? Data(), encoding: .utf8) {
+            print("📤 Poll API request: \(url.absoluteString) body: \(bodyString)")
+        } else {
+            print("📤 Poll API request: \(url.absoluteString)")
+        }
 
         do {
         let (data, resp) = try await URLSession.shared.data(for: req)
@@ -62,11 +71,19 @@ final class ActivationPollAPI {
             let result = try await pollOnce(deviceCode: deviceCode)
             let status = result.status.uppercased()
 
+            if showInactiveScreenOnly {
+                throw AppError.activationInactive
+            }
             if status == "ACTIVE" || status == "ACTIVATED" {
                 return result
             }
+            if status == "INACTIVE" {
+                throw AppError.activationInactive
+            }
             } catch {
-                // For polling we treat transient failures as retryable and keep trying
+                if let appErr = error as? AppError, case .activationInactive = appErr {
+                    throw appErr
+                }
                 print("⚠️ Polling attempt \(attempt) failed: \(error)")
             }
 

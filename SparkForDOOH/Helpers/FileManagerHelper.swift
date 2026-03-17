@@ -15,12 +15,12 @@ final class FileManagerHelper {
     /// - io.sentry: Sentry crash reports
     /// - AdsCache: Downloaded ad assets for playback
     /// - PlaylistCache: Cached playlist structure for offline relaunch
-    /// - com.doceree.DocereeiOSMainNew: SQLite cache (deleting while in use causes errors)
+    /// - com.doceree.sparkdooh.tvos: URLSession/system SQLite cache (deleting while in use causes libsqlite3 errors)
     private let protectedDirectoryNames: Set<String> = [
         "io.sentry",
         "AdsCache",
         "PlaylistCache",
-        "com.doceree.DocereeiOSMainNew"
+        "com.doceree.sparkdooh.tvos"
     ]
 
     // MARK: - Clear Files
