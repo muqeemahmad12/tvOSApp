@@ -81,8 +81,8 @@ final class ActivationViewModel: ObservableObject {
                     )
                     print("📢 Activated on expiry check: \(data.status)")
                     isActivated = true
-                } else {
-                    // PENDING or INACTIVE: show Activation Failed for 10 seconds, then refresh code
+                } else if status == "PENDING" || status == "INACTIVE" {
+                    // PENDING is not an error by itself; it becomes an error here because we didn't get ACTIVE within 15 mins (timer just completed). INACTIVE = screen deactivated. Show Activation Failed for 10 seconds, then refresh code.
                     isActivationFailed = true
                     DispatchQueue.main.asyncAfter(deadline: .now() + 10) { [weak self] in
                         Task { @MainActor in
@@ -90,6 +90,8 @@ final class ActivationViewModel: ObservableObject {
                             self?.refreshActivationCode()
                         }
                     }
+                } else {
+                    refreshActivationCode()
                 }
             } catch {
                 refreshActivationCode()

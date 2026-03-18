@@ -19,7 +19,7 @@ struct RootView: View {
             Group {
                 switch appVM.phase {
                 case .activating:
-                    ActivationView {
+                    ActivationView(showActivationFailedFromHeartbeat: $appVM.showActivationFailedFromHeartbeat) {
                         // When activation completes, start fetching ads and switch to player
                         adListVM.fetchAds(screenId: AppConfig.current.screenId, reqNum: 1)
                         appVM.phase = .playing
@@ -71,6 +71,9 @@ struct RootView: View {
             if phase == .active, !networkMonitor.isConnected {
                 NetworkMonitor.shared.refreshConnectivity()
             }
+        }
+        .onReceive(NotificationCenter.default.publisher(for: .heartbeatScreenStatusInactive)) { _ in
+            appVM.handleHeartbeatScreenStatusInactive()
         }
     }
 }

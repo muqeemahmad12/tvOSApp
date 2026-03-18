@@ -19,6 +19,9 @@ extension Notification.Name {
     
     /// Posted when the first heartbeat fails (used to route to registration/activation)
     static let initialHeartbeatFailed = Notification.Name("com.doceree.sparkfordooh.initialHeartbeatFailed")
+    
+    /// Posted when a heartbeat response has data.screenStatus == "INACTIVE" (screen deactivated remotely).
+    static let heartbeatScreenStatusInactive = Notification.Name("com.doceree.sparkfordooh.heartbeatScreenStatusInactive")
 }
 
 /// Heartbeat API for sending device status to the backend.
@@ -27,12 +30,15 @@ final class HeartbeatAPI {
     static let shared = HeartbeatAPI()
     private init() {}
     
-    /// Heartbeat response model
+    /// Heartbeat response model (matches backend: code, message, data.screenStatus)
     struct HeartbeatResponse: Codable {
-        let timestamp: String?
         let code: Int?
-        let status: String?
         let message: String?
+        let data: HeartbeatResponseData?
+    }
+
+    struct HeartbeatResponseData: Codable {
+        let screenStatus: String?
     }
     
     /// Heartbeat interval in seconds (20 minutes)
@@ -177,13 +183,25 @@ final class HeartbeatAPI {
             }
             
             if (200...299).contains(httpResponse.statusCode) {
-                // Parse and log response
-                let raw = String(data: data, encoding: .utf8) ?? ""
                 print("💓 Heartbeat OK (HTTP \(httpResponse.statusCode))")
                 if let heartbeatResponse = try? JSONDecoder().decode(HeartbeatResponse.self, from: data) {
-                    print("💓 Parsed: \(heartbeatResponse)")
+                    let responseForm: [String: Any] = [
+                        "code": heartbeatResponse.code ?? 0,
+                        "message": heartbeatResponse.message ?? "",
+                        "data": ["screenStatus": heartbeatResponse.data?.screenStatus ?? ""]
+                    ]
+                    if let jsonData = try? JSONSerialization.data(withJSONObject: responseForm),
+                       let jsonString = String(data: jsonData, encoding: .utf8) {
+                        print("💓 Heartbeat response: \(jsonString)")
+                    }
+                    if heartbeatResponse.data?.screenStatus?.uppercased() == "INACTIVE" {
+                        await MainActor.run {
+                            NotificationCenter.default.post(name: .heartbeatScreenStatusInactive, object: nil)
+                        }
+                    }
+                } else {
+                    print("💓 Raw response: \(String(data: data, encoding: .utf8) ?? "")")
                 }
-                print("💓 Raw Response: \(raw)")
                 NetworkMonitor.shared.markOnline(reason: "HeartbeatSuccess")
                 return true
             } else {

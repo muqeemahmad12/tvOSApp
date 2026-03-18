@@ -9,11 +9,18 @@ import SwiftUI
 import UIKit
 
 struct ActivationView: View {
+    /// When true (e.g. from heartbeat INACTIVE while on player), show Activation Failed without polling.
+    @Binding var showActivationFailedFromHeartbeat: Bool
     /// Called when activation is considered complete (e.g. backend marks device as ACTIVE).
     var onActivated: () -> Void = {}
 
     @StateObject private var vm = ActivationViewModel()
     @ObservedObject private var networkMonitor = NetworkMonitor.shared
+
+    init(showActivationFailedFromHeartbeat: Binding<Bool> = .constant(false), onActivated: @escaping () -> Void = {}) {
+        self._showActivationFailedFromHeartbeat = showActivationFailedFromHeartbeat
+        self.onActivated = onActivated
+    }
 
     var body: some View {
         ZStack {
@@ -50,11 +57,32 @@ struct ActivationView: View {
             }
         }
         .onAppear {
-            // Prevent screensaver/sleep while waiting for activation
             UIApplication.shared.isIdleTimerDisabled = true
             print("🔒 Idle timer disabled during activation")
-            
-            vm.activateDevice()
+            if showActivationFailedFromHeartbeat {
+                vm.isActivationFailed = true
+                showActivationFailedFromHeartbeat = false
+                DispatchQueue.main.asyncAfter(deadline: .now() + 10) {
+                    vm.isActivationFailed = false
+                    vm.activateDevice()
+                    print("🔒 After 10s: showing registration screen with new code")
+                }
+                print("🔒 Showing Activation Failed (from heartbeat, onAppear)")
+            } else {
+                vm.activateDevice()
+            }
+        }
+        .onChange(of: showActivationFailedFromHeartbeat) { newValue in
+            if newValue {
+                vm.isActivationFailed = true
+                showActivationFailedFromHeartbeat = false
+                DispatchQueue.main.asyncAfter(deadline: .now() + 10) {
+                    vm.isActivationFailed = false
+                    vm.activateDevice()
+                    print("🔒 After 10s: showing registration screen with new code")
+                }
+                print("🔒 Showing Activation Failed (from heartbeat, onChange)")
+            }
         }
         .onChange(of: vm.isActivated) { activated in
             if activated {

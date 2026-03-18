@@ -17,12 +17,17 @@ final class AppRootViewModel: ObservableObject {
 
     @Published var phase: Phase
     
+    /// When true, ActivationView should show Activation Failed (set when heartbeat returns INACTIVE while on player).
+    @Published var showActivationFailedFromHeartbeat = false
+    
     // Keys for UserDefaults persistence
     private static let isActivatedKey = "com.doceree.sparkfordooh.isActivated"
     private static let secureKeyKey = "com.doceree.sparkfordooh.secureKey"
     private static let deviceCodeKey = "com.doceree.sparkfordooh.deviceCode"
     private static let tickerMessageKey = "com.doceree.sparkfordooh.tickerMessage"
     private static let logoUrlKey = "com.doceree.sparkfordooh.logoUrl"
+    
+    private var heartbeatInactiveObserver: NSObjectProtocol?
     
     init() {
         // Check if device was previously activated
@@ -31,6 +36,22 @@ final class AppRootViewModel: ObservableObject {
             self.phase = .playing
         } else {
             self.phase = .activating
+        }
+        // Observe heartbeat INACTIVE on main queue so we switch to Activation Failed when on player
+        heartbeatInactiveObserver = NotificationCenter.default.addObserver(
+            forName: .heartbeatScreenStatusInactive,
+            object: nil,
+            queue: .main
+        ) { [weak self] _ in
+            Task { @MainActor in
+                self?.handleHeartbeatScreenStatusInactive()
+            }
+        }
+    }
+    
+    deinit {
+        if let o = heartbeatInactiveObserver {
+            NotificationCenter.default.removeObserver(o)
         }
     }
     
@@ -95,6 +116,18 @@ final class AppRootViewModel: ObservableObject {
         } else {
             UserDefaults.standard.removeObject(forKey: logoUrlKey)
         }
+    }
+    
+    /// Called when heartbeat response has screenStatus INACTIVE. If we're on player, clear activation and switch to activation + show failed screen; if already on registration, do nothing.
+    func handleHeartbeatScreenStatusInactive() {
+        guard phase == .playing else {
+            print("💓 Heartbeat INACTIVE ignored (already on activation, phase=\(phase))")
+            return
+        }
+        print("💓 Heartbeat INACTIVE: clearing activation, switching to Activation Failed")
+        Self.clearActivation()
+        showActivationFailedFromHeartbeat = true
+        phase = .activating
     }
     
     /// Clear activation (for testing or re-activation)
