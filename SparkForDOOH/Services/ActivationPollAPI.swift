@@ -17,8 +17,8 @@ final class ActivationPollAPI {
     private let showInactiveScreenOnly = false
 
     func pollOnce(deviceCode: String) async throws -> ActivationPollData {
-        let base = AppConfig.current.activationBaseURL
-        let url = base.appendingPathComponent("v1/dooh/device/activation/poll")
+        await TVRemoteConfigService.waitUntilLaunchConfigNetworkFinished()
+        let url = TVRemoteConfigStore.shared.activationURL(pathComponents: "dooh", "device", "activation", "poll")
 
         var req = URLRequest(url: url)
         req.httpMethod = "POST"

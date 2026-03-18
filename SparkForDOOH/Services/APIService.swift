@@ -16,13 +16,13 @@ final class APIService {
 
     /// Fetch the ad item sequence info for a given screen.
     func fetchItemSeqInfo(screenId: String, reqNum: Int) async throws -> ItemSeqInfoResponse {
-        let base = AppConfig.current.drsBaseURL
-        let url = base.appendingPathComponent("drs/v2/quest")
+        await TVRemoteConfigService.waitUntilLaunchConfigNetworkFinished()
+        let url = TVRemoteConfigStore.shared.drsQuestURL()
 
         var request = URLRequest(url: url)
         request.httpMethod = "POST"
         request.setValue("application/json", forHTTPHeaderField: "Content-Type")
-        request.setValue("fdd74745-a0ed-440c-ad10-3815d659a599", forHTTPHeaderField: "x-api-key")
+        request.setValue(AppConfig.current.drsQuestApiKey, forHTTPHeaderField: "x-api-key")
         let deviceCode = await AppRootViewModel.getSavedDeviceCode() ?? ""
         request.setValue(deviceCode, forHTTPHeaderField: "x-dev-id")
         

@@ -136,8 +136,8 @@ final class HeartbeatAPI {
     /// Send a single heartbeat to the backend
     @discardableResult
     private func sendHeartbeat() async -> Bool {
-        let baseURL = AppConfig.current.activationBaseURL
-        let url = baseURL.appendingPathComponent("v1/dooh/device/heartbeat")
+        await TVRemoteConfigService.waitUntilLaunchConfigNetworkFinished()
+        let url = TVRemoteConfigStore.shared.activationURL(pathComponents: "dooh", "device", "heartbeat")
         
         let deviceId = await UIDevice.current.identifierForVendor?.uuidString ?? UUID().uuidString
         let secureKey = await AppRootViewModel.getSavedSecureKey() ?? ""
@@ -164,7 +164,7 @@ final class HeartbeatAPI {
             "currentAdId": currentAdId,
             "appVersion": Bundle.main.infoDictionary?["CFBundleShortVersionString"] as? String ?? "1.0",
             "osVersion": UIDevice.current.systemVersion,
-            "environment": AppConfig.current.environment
+            "environment": TVRemoteConfigStore.shared.environmentLabel
         ]
         
         do {

@@ -1,4 +1,4 @@
-//
+    //
 //  ActivationAPI.swift
 //  SparkForDOOH
 //
@@ -14,8 +14,8 @@ final class ActivationAPI {
     private init() {}
 
     func requestActivation(payload: ActivationRequest) async throws -> ActivationData {
-        let base = AppConfig.current.activationBaseURL
-        let url = base.appendingPathComponent("v1/dooh/device/activation/request")
+        await TVRemoteConfigService.waitUntilLaunchConfigNetworkFinished()
+        let url = TVRemoteConfigStore.shared.activationURL(pathComponents: "dooh", "device", "activation", "request")
 
         var req = URLRequest(url: url)
         req.httpMethod = "POST"

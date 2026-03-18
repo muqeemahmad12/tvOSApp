@@ -115,7 +115,7 @@ final class ActivationViewModel: ObservableObject {
         Task {
             do {
                 let payload = buildActivationPayload()
-                let activationURL = AppConfig.current.activationBaseURL.appendingPathComponent("v1/dooh/device/activation/request")
+                let activationURL = TVRemoteConfigStore.shared.activationURL(pathComponents: "dooh", "device", "activation", "request")
                 let encoder = JSONEncoder()
                 encoder.outputFormatting = [.prettyPrinted, .sortedKeys]
                 if let data = try? encoder.encode(payload), let json = String(data: data, encoding: .utf8) {
@@ -245,7 +245,7 @@ final class ActivationViewModel: ObservableObject {
     func generateQRUrl() -> String {
         guard !activationCode.isEmpty else { return "" }
         let cb = generateCB()
-        let baseURL = AppConfig.current.sparkPortalURL.absoluteString
+        let baseURL = TVRemoteConfigStore.shared.sparkPortalURL.absoluteString
         return "\(baseURL)/?cb=\(cb)&code=\(activationCode)"
     }
     

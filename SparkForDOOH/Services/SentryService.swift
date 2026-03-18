@@ -17,20 +17,14 @@ final class SentryService {
 
     private init() {}
 
-    /// Initialise Sentry for crash/error reporting.
-    /// DSN and environment are read from AppConfig (which pulls from xcconfig files).
+    /// After tv-config: environment tag = activation URL host (QA/Dev/Prod implied by which URLs you serve).
     func start() {
         #if canImport(Sentry)
         let config = AppConfig.current
         let dsn = config.sentryDSN.isEmpty
             ? "https://c353fdf8cb6dc0e392e953bd771f6260@o4510509371228160.ingest.us.sentry.io/4510509381582848"
             : config.sentryDSN
-        let environment = config.environment
-
-        guard !dsn.isEmpty else {
-            print("ℹ️ Sentry DSN is empty; skipping initialisation")
-            return
-        }
+        let environment = TVRemoteConfigStore.shared.environmentLabel
 
         SentrySDK.start { options in
             options.dsn = dsn

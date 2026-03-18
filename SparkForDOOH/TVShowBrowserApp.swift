@@ -12,12 +12,12 @@ struct SparkForDOOHApp: App {
     init() {
         print("🚀 App launching...")
         
-        // Initialize Sentry for crash reporting
-        SentryService.shared.start()
-        
-        // Start initial heartbeat (will retry every 5 minutes until success)
         DispatchQueue.main.async {
-            HeartbeatAPI.shared.startInitialHeartbeat()
+            Task {
+                await TVRemoteConfigService.fetchConfigUntilSuccess()
+                SentryService.shared.start()
+                HeartbeatAPI.shared.startInitialHeartbeat()
+            }
         }
         
         // Clear old cache after a delay (protects Sentry and AdsCache)
@@ -35,6 +35,7 @@ struct SparkForDOOHApp: App {
 
 /// Simple landing gate that waits for initial heartbeat success before showing the app.
 private struct LandingGateView: View {
+    @State private var tvConfigReady = false
     @State private var isReady = false
     @State private var didFail = false
     @State private var status: String = "Checking device status…"
@@ -45,7 +46,18 @@ private struct LandingGateView: View {
     var body: some View {
         ZStack {
             Group {
-                if isReady || hasPersistedActivation {
+                if !tvConfigReady {
+                    VStack(spacing: 20) {
+                        ProgressView()
+                            .progressViewStyle(.circular)
+                        Text("Loading configuration…")
+                            .font(.title3)
+                            .foregroundColor(.white.opacity(0.8))
+                    }
+                    .frame(maxWidth: .infinity, maxHeight: .infinity)
+                    .background(Color.black)
+                    .ignoresSafeArea()
+                } else if isReady || hasPersistedActivation {
                     RootView()
                 } else if didFail {
                     ActivationView {
@@ -105,10 +117,15 @@ private struct LandingGateView: View {
             }
             
             // Only show offline overlay while gating/activation and not already activated.
-            if !networkMonitor.isConnected && !isReady && !hasPersistedActivation {
+            if tvConfigReady,
+               !networkMonitor.isConnected && !isReady && !hasPersistedActivation {
                 ConnectionLostView()
                     .transition(.opacity)
             }
+        }
+        .task {
+            await TVRemoteConfigService.waitUntilLaunchConfigNetworkFinished()
+            tvConfigReady = true
         }
         .onChange(of: scenePhase) { phase in
             if phase == .active && !isReady {

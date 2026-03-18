@@ -14,6 +14,7 @@ final class TrackerService {
     /// Fire a list of tracker URLs (best-effort, no retries).
     func fire(urls: [String]) {
         Task.detached(priority: .background) {
+            await TVRemoteConfigService.waitUntilLaunchConfigNetworkFinished()
             let nowMs = Int(Date().timeIntervalSince1970 * 1000)
             for urlString in urls {
                 let resolved = urlString.replacingOccurrences(of: "{{EVENT_CLIENT_TIME}}", with: "\(nowMs)")

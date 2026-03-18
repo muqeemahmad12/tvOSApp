@@ -68,8 +68,8 @@ final class AdPlayerViewModel: ObservableObject {
     /// Hard cap for on-disk ads cache (bytes). LRU eviction will run when exceeded.
     fileprivate let maxAdsCacheSizeBytes: UInt64
 
-    init(config: AppConfig = .current, disablePreloadingAndValidation: Bool = false) {
-        self.screenId = config.screenId
+    init(config: AppConfig = .current, screenId: String? = nil, disablePreloadingAndValidation: Bool = false) {
+        self.screenId = screenId ?? config.screenId
         self.repeatInTime = config.playlistRepeatInterval
         self.disablePreloadingAndValidation = disablePreloadingAndValidation
         self.maxAdsCacheSizeBytes = config.adsCacheMaxBytes

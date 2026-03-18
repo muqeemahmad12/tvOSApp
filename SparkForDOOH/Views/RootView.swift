@@ -46,12 +46,8 @@ struct RootView: View {
             }
         }
         .onAppear {
-            // If already activated (from previous launch), load cached playlist first for fast start
             if appVM.phase == .playing {
-                // Load cached playlist immediately for instant playback
                 adListVM.loadCachedPlaylistIfAvailable()
-                
-                // Then fetch fresh data from API (will update if different)
                 adListVM.fetchAds(screenId: AppConfig.current.screenId, reqNum: 1)
             }
         }
