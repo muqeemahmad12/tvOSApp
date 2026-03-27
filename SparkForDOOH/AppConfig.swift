@@ -17,7 +17,7 @@ struct AppConfig {
     let sentryDSN: String
     /// x-api-key for activation / heartbeat (Keen).
     let apiKey: String
-    /// x-api-key for DRS `/drs/v2/quest` (different from heartbeat).
+    /// `x-hs-key` on DRS `/drs/v2/quest` (different from heartbeat `x-api-key`).
     let drsQuestApiKey: String
     let adsCacheMaxBytes: UInt64
     let playlistRepeatInterval: TimeInterval

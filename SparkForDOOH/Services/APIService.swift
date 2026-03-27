@@ -22,13 +22,12 @@ final class APIService {
         var request = URLRequest(url: url)
         request.httpMethod = "POST"
         request.setValue("application/json", forHTTPHeaderField: "Content-Type")
-        request.setValue(AppConfig.current.drsQuestApiKey, forHTTPHeaderField: "x-api-key")
+        request.setValue(AppConfig.current.drsQuestApiKey, forHTTPHeaderField: "x-hs-key")
         let deviceCode = await AppRootViewModel.getSavedDeviceCode() ?? ""
         request.setValue(deviceCode, forHTTPHeaderField: "x-dev-id")
-        
-        // Get the secureKey from activation (required by API - sent in header)
+
         let secureKey = await AppRootViewModel.getSavedSecureKey() ?? ""
-        request.setValue(secureKey, forHTTPHeaderField: "X-Requested-With")
+        request.setValue(secureKey, forHTTPHeaderField: "x-api-key")
 
         // Only reqNum in body - screenId is derived from securityKey on server
         let payload: [String: Any] = [
@@ -42,7 +41,8 @@ final class APIService {
             // Log request details for debugging
             print("📤 API Request: \(url)")
             print("📤 Payload: reqNum=\(reqNum)")
-            print("📤 Header X-Requested-With: \(secureKey) (length: \(secureKey.count))")
+            print("📤 Header x-api-key (secureKey): length \(secureKey.count)")
+            print("📤 Header x-hs-key: DRS quest key")
             print("📤 Header x-dev-id: \(deviceCode)")
         
         if let raw = String(data: data, encoding: .utf8) {
