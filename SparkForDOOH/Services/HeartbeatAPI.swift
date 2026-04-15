@@ -106,6 +106,8 @@ final class HeartbeatAPI {
                 markInitialHeartbeatSucceeded()
             } else {
                 print("⏳ Initial heartbeat failed; routing to registration/activation")
+                SentryService.shared.track(SentryAnalyticsEvent.initialHeartbeatFailed)
+                SentryService.shared.breadcrumb(category: "heartbeat", message: "initial_failed", data: [:])
                 NotificationCenter.default.post(name: .initialHeartbeatFailed, object: nil)
             }
         }
@@ -114,6 +116,8 @@ final class HeartbeatAPI {
     private func markInitialHeartbeatSucceeded() {
         initialHeartbeatSucceeded = true
         print("✅ Initial heartbeat succeeded; stopping retry loop")
+        SentryService.shared.track(SentryAnalyticsEvent.initialHeartbeatSuccess)
+        SentryService.shared.breadcrumb(category: "heartbeat", message: "initial_ok", data: [:])
         NotificationCenter.default.post(name: .initialHeartbeatSucceeded, object: nil)
         startHeartbeat()
     }

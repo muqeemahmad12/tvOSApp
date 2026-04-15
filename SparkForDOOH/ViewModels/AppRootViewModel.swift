@@ -78,6 +78,12 @@ final class AppRootViewModel: ObservableObject {
             UserDefaults.standard.set(logoUrl, forKey: logoUrlKey)
         }
         print("💾 Activation saved to UserDefaults")
+        SentryService.shared.setUser(deviceCode: deviceCode, screenId: AppConfig.current.screenId)
+        SentryService.shared.track(
+            SentryAnalyticsEvent.activationSaved,
+            attributes: ["has_ticker": (tickerMessage != nil && !(tickerMessage?.isEmpty ?? true)) ? "true" : "false"]
+        )
+        SentryService.shared.breadcrumb(category: "activation", message: "credentials_saved", data: [:])
     }
     
     /// Get saved secure key
@@ -138,6 +144,9 @@ final class AppRootViewModel: ObservableObject {
         UserDefaults.standard.removeObject(forKey: tickerMessageKey)
         UserDefaults.standard.removeObject(forKey: logoUrlKey)
         print("🗑️ Activation cleared from UserDefaults")
+        SentryService.shared.clearUser()
+        SentryService.shared.track(SentryAnalyticsEvent.activationCleared)
+        SentryService.shared.breadcrumb(category: "activation", message: "credentials_cleared", data: [:])
     }
 }
 

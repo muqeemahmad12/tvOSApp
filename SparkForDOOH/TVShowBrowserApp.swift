@@ -16,6 +16,18 @@ struct SparkForDOOHApp: App {
             Task {
                 await TVRemoteConfigService.fetchConfigUntilSuccess()
                 SentryService.shared.start()
+                await MainActor.run {
+                    SentryService.shared.syncUserContextIfActivated()
+                    SentryService.shared.track(
+                        SentryAnalyticsEvent.tvConfigLoaded,
+                        attributes: ["activation_host": TVRemoteConfigStore.shared.environmentLabel]
+                    )
+                    SentryService.shared.breadcrumb(
+                        category: "lifecycle",
+                        message: "tv_config_ready",
+                        data: [:]
+                    )
+                }
                 HeartbeatAPI.shared.startInitialHeartbeat()
             }
         }

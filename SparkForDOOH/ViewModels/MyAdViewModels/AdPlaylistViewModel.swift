@@ -57,17 +57,29 @@ final class AdPlaylistViewModel: ObservableObject {
                         ads = cached.flatMap { $0.ii }
                         isUsingCachedPlaylist = true
                         print("📂 Empty API playlist - continuing with cached content")
+                        SentryService.shared.track(SentryAnalyticsEvent.playlistEmpty, attributes: ["used_cache": "true"])
                     } else {
                         groupedAds = []
                         ads = []
                         isUsingCachedPlaylist = false
                         print("⚠️ Empty API playlist and no cache available")
+                        SentryService.shared.track(SentryAnalyticsEvent.playlistEmpty, attributes: ["used_cache": "false"])
                     }
+                    SentryService.shared.breadcrumb(category: "playlist", message: "empty_response", data: [:])
                 } else {
                     groupedAds = groups
                     ads = groups.flatMap { $0.ii }
                     isUsingCachedPlaylist = false
-                    
+                    let itemCount = ads.count
+                    SentryService.shared.track(
+                        SentryAnalyticsEvent.playlistLoaded,
+                        attributes: ["group_count": "\(groups.count)", "item_count": "\(itemCount)"]
+                    )
+                    SentryService.shared.breadcrumb(
+                        category: "playlist",
+                        message: "fetch_success",
+                        data: ["groups": "\(groups.count)", "items": "\(itemCount)"]
+                    )
                     // Cache the playlist for offline use
                     cacheService.savePlaylist(groups)
                 }
@@ -75,13 +87,22 @@ final class AdPlaylistViewModel: ObservableObject {
                 let appError = AppError.from(error)
                 errorMessage = appError.localizedDescription
                 print("❌ Playlist API Failed:", appError)
-                
+                let errSummary = String(describing: appError).prefix(200)
+                SentryService.shared.track(SentryAnalyticsEvent.playlistFetchFailed, attributes: ["error": String(errSummary)])
+                SentryService.shared.breadcrumb(
+                    category: "playlist",
+                    message: "fetch_error",
+                    data: ["error": String(errSummary)]
+                )
+
                 // Fall back to cached playlist if API fails
                 if groupedAds.isEmpty, let cached = cacheService.loadCachedPlaylist() {
                     groupedAds = cached
                     ads = cached.flatMap { $0.ii }
                     isUsingCachedPlaylist = true
                     print("📂 API failed - using cached playlist as fallback")
+                    SentryService.shared.track(SentryAnalyticsEvent.playlistUsedCache)
+                    SentryService.shared.breadcrumb(category: "playlist", message: "cache_fallback_after_error", data: [:])
                 }
             }
 
