@@ -47,8 +47,21 @@ struct RootView: View {
         }
         .onAppear {
             if appVM.phase == .playing {
+                SentryService.shared.track(
+                    SentryAnalyticsEvent.screenPlayingPhase,
+                    attributes: ["screen_id": AppConfig.current.screenId]
+                )
                 adListVM.loadCachedPlaylistIfAvailable()
                 adListVM.fetchAds(screenId: AppConfig.current.screenId, reqNum: 1)
+            }
+        }
+        .onChange(of: appVM.phase) { phase in
+            if phase == .playing {
+                SentryService.shared.track(
+                    SentryAnalyticsEvent.screenPlayingPhase,
+                    attributes: ["screen_id": AppConfig.current.screenId]
+                )
+                SentryService.shared.breadcrumb(category: "lifecycle", message: "playing_phase", data: [:])
             }
         }
         .onChange(of: networkMonitor.isConnected) { isConnected in

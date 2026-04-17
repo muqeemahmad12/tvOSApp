@@ -199,8 +199,26 @@ final class NetworkMonitor: ObservableObject {
     private func applyStatus(connected: Bool, path: NWPath, reason: String) {
         let inferredType = getConnectionType(path, fallback: connected ? .wifi : .unknown)
         print("🛰️ Path status: \(path.status) | expensive=\(path.isExpensive) constrained=\(path.isConstrained) [\(reason)], inferredType=\(inferredType)")
+        let wasConnected = isConnected
         isConnected = connected
         connectionType = inferredType
+
+        if connected != wasConnected {
+            let reasonTag = String(reason.prefix(200))
+            if !connected {
+                SentryService.shared.track(
+                    SentryAnalyticsEvent.networkConnectivityLost,
+                    attributes: ["reason": reasonTag]
+                )
+                SentryService.shared.breadcrumb(category: "network", message: "connectivity_lost", data: ["reason": reasonTag])
+            } else {
+                SentryService.shared.track(
+                    SentryAnalyticsEvent.networkConnectivityRestored,
+                    attributes: ["reason": reasonTag]
+                )
+                SentryService.shared.breadcrumb(category: "network", message: "connectivity_restored", data: ["reason": reasonTag])
+            }
+        }
         if connected {
             stopPeriodicProbe()
             print("🌐 Network: Connected (\(connectionType)) [\(reason)]")

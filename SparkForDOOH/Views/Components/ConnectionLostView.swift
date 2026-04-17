@@ -56,6 +56,10 @@ Please check power and internet (Wi-Fi/Ethernet) for this device. If the network
             .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .center)
             .padding(.top, -100) // shift entire stack upward
         }
+        .onAppear {
+            SentryService.shared.track(SentryAnalyticsEvent.errorScreenConnectionLost, attributes: [:])
+            SentryService.shared.breadcrumb(category: "error_ui", message: "connection_lost_visible", data: [:])
+        }
     }
 }
 

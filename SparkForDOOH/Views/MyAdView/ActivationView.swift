@@ -59,6 +59,13 @@ struct ActivationView: View {
         .onAppear {
             UIApplication.shared.isIdleTimerDisabled = true
             print("🔒 Idle timer disabled during activation")
+            SentryService.shared.track(
+                SentryAnalyticsEvent.screenActivationFlow,
+                attributes: [
+                    "heartbeat_failure_pending": showActivationFailedFromHeartbeat ? "true" : "false"
+                ]
+            )
+            SentryService.shared.breadcrumb(category: "lifecycle", message: "activation_flow_visible", data: [:])
             if showActivationFailedFromHeartbeat {
                 vm.isActivationFailed = true
                 showActivationFailedFromHeartbeat = false

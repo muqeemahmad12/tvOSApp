@@ -503,7 +503,7 @@
 				GENERATE_INFOPLIST_FILE = YES;
 				INFOPLIST_KEY_CFBundleDisplayName = "Spark for DOOH";
 				INFOPLIST_KEY_LSApplicationCategoryType = "public.app-category.healthcare-fitness";
-				INFOPLIST_KEY_SENTRY_DSN = "https://c353fdf8cb6dc0e392e953bd771f6260@o4510509371228160.ingest.us.sentry.io/4510509381582848";
+				INFOPLIST_KEY_SENTRY_DSN = "https://fb67b94950cc30fff47b2e75ad7b65c0@o4511228284764161.ingest.us.sentry.io/4511228286402560";
 				INFOPLIST_KEY_SENTRY_ENVIRONMENT = Dev;
 				INFOPLIST_KEY_TVTopShelfImage_TVTopShelfPrimaryImage = loading_screen;
 				INFOPLIST_KEY_TVTopShelfImage_TVTopShelfPrimaryImageWide = loading_screen;
@@ -541,7 +541,7 @@
 				GENERATE_INFOPLIST_FILE = YES;
 				INFOPLIST_KEY_CFBundleDisplayName = "Spark for DOOH";
 				INFOPLIST_KEY_LSApplicationCategoryType = "public.app-category.healthcare-fitness";
-				INFOPLIST_KEY_SENTRY_DSN = "https://c353fdf8cb6dc0e392e953bd771f6260@o4510509371228160.ingest.us.sentry.io/4510509381582848";
+				INFOPLIST_KEY_SENTRY_DSN = "https://fb67b94950cc30fff47b2e75ad7b65c0@o4511228284764161.ingest.us.sentry.io/4511228286402560";
 				INFOPLIST_KEY_SENTRY_ENVIRONMENT = Prod;
 				INFOPLIST_KEY_TVTopShelfImage_TVTopShelfPrimaryImage = loading_screen;
 				INFOPLIST_KEY_TVTopShelfImage_TVTopShelfPrimaryImageWide = loading_screen;

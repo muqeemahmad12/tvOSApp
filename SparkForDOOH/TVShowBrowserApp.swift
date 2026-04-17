@@ -17,16 +17,41 @@ struct SparkForDOOHApp: App {
                 await TVRemoteConfigService.fetchConfigUntilSuccess()
                 SentryService.shared.start()
                 await MainActor.run {
+                    SentryService.shared.attachDeviceContext(
+                        environment: TVRemoteConfigStore.shared.environmentLabel
+                    )
                     SentryService.shared.syncUserContextIfActivated()
                     SentryService.shared.track(
-                        SentryAnalyticsEvent.tvConfigLoaded,
-                        attributes: ["activation_host": TVRemoteConfigStore.shared.environmentLabel]
+                        SentryAnalyticsEvent.appLaunch,
+                        attributes: [
+                            "config_key": TVRemoteConfigStore.shared.selectedKey,
+                            "device_activated": AppRootViewModel.isDeviceActivated() ? "true" : "false"
+                        ]
                     )
+                    SentryService.shared.breadcrumb(category: "lifecycle", message: "app_launch", data: [:])
                     SentryService.shared.breadcrumb(
                         category: "lifecycle",
                         message: "tv_config_ready",
                         data: [:]
                     )
+                    #if DEBUG
+                    if CommandLine.arguments.contains("--sentry-crash-test") {
+                        let crashKey = "com.doceree.sparkfordooh.debug.sentryCrashTestTriggered"
+                        if !UserDefaults.standard.bool(forKey: crashKey) {
+                            UserDefaults.standard.set(true, forKey: crashKey)
+                            SentryService.shared.breadcrumb(
+                                category: "debug",
+                                message: "sentry_crash_test_requested",
+                                data: [:]
+                            )
+                            DispatchQueue.main.asyncAfter(deadline: .now() + 1.0) {
+                                SentryService.shared.triggerTestCrashForPOC()
+                            }
+                        } else {
+                            print("🧪 Sentry crash test already triggered once; skipping to allow crash upload.")
+                        }
+                    }
+                    #endif
                 }
                 HeartbeatAPI.shared.startInitialHeartbeat()
             }

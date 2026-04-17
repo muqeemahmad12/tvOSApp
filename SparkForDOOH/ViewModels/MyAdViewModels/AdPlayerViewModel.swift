@@ -64,6 +64,9 @@ final class AdPlayerViewModel: ObservableObject {
 
     /// Soft cap for in-memory image cache to avoid unbounded growth with very large playlists.
     fileprivate let maxImageCacheEntries = 200
+
+    /// True after first `playCurrentGroup` in this player session (for Sentry playback start / stop pairing).
+    fileprivate var playbackSessionReportedToSentry = false
     
     /// Hard cap for on-disk ads cache (bytes). LRU eviction will run when exceeded.
     fileprivate let maxAdsCacheSizeBytes: UInt64
@@ -139,6 +142,11 @@ extension AdPlayerViewModel {
         timer?.invalidate()
         syncTimer?.invalidate()
         isPlayerReadyForOverlay = false
+        if playbackSessionReportedToSentry {
+            playbackSessionReportedToSentry = false
+            SentryService.shared.track(SentryAnalyticsEvent.playbackStopped, attributes: [:])
+            SentryService.shared.breadcrumb(category: "playback", message: "stopped", data: [:])
+        }
     }
     
     /// Resume playback when app returns to foreground (e.g. TV wake, app resume).
@@ -347,6 +355,23 @@ private extension AdPlayerViewModel {
         currentGroup = group
         print("▶️ Playing group \(group.sequence) — \(group.ii.count) ads")
         isPlayerReadyForOverlay = true
+
+        if !playbackSessionReportedToSentry, !disablePreloadingAndValidation {
+            playbackSessionReportedToSentry = true
+            SentryService.shared.track(
+                SentryAnalyticsEvent.playbackStarted,
+                attributes: [
+                    "sequence": "\(group.sequence)",
+                    "group_items": "\(group.ii.count)",
+                    "safe_content": isPlayingSafeContent ? "true" : "false"
+                ]
+            )
+            SentryService.shared.breadcrumb(
+                category: "playback",
+                message: "started",
+                data: ["sequence": "\(group.sequence)"]
+            )
+        }
         
         // Update heartbeat with current playback status
         let currentAdId = group.ii.first?.itemid ?? ""
@@ -426,6 +451,16 @@ private extension AdPlayerViewModel {
         if let trackers = ad.trackerlist, !trackers.isEmpty {
             TrackerService.shared.fire(urls: trackers)
         }
+        let itemId = String(ad.itemid.prefix(120))
+        SentryService.shared.track(
+            SentryAnalyticsEvent.adImpression,
+            attributes: [
+                "asset_type": String(ad.assettype.prefix(32)),
+                "item_id": itemId,
+                "sequence": ad.sequence.map { String($0) } ?? ""
+            ],
+            sampleRate: 0.2
+        )
     }
     
     func trackCompletion(for ad: AdItemModel) {
@@ -608,7 +643,7 @@ private extension AdPlayerViewModel {
         
         // Log to Sentry for monitoring
         let error = NSError(domain: "com.sparkfordooh.sync", code: 1, userInfo: [NSLocalizedDescriptionKey: "Sync fallback activated after \(maxSyncFailuresBeforeFallback) failures"])
-        SentryService.shared.capture(error: error)
+        SentryService.shared.capture(error: error, tags: ["layer": "playback", "reason": "sync_fallback"])
     }
 
     func applyPendingPlaylistSafely() async {

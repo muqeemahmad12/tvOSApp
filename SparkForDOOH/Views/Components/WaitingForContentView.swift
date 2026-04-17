@@ -53,6 +53,10 @@ Please contact your Facility Manager/Administrator to assign or schedule the con
             }
             .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .center)
         }
+        .onAppear {
+            SentryService.shared.track(SentryAnalyticsEvent.errorScreenWaitingForContent, attributes: [:])
+            SentryService.shared.breadcrumb(category: "error_ui", message: "waiting_for_content_visible", data: [:])
+        }
     }
 }
 

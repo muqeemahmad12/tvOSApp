@@ -50,6 +50,10 @@ struct ActivationFailedView: View {
             }
             .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .center)
         }
+        .onAppear {
+            SentryService.shared.track(SentryAnalyticsEvent.errorScreenActivationFailed, attributes: [:])
+            SentryService.shared.breadcrumb(category: "error_ui", message: "activation_failed_visible", data: [:])
+        }
     }
 }
 

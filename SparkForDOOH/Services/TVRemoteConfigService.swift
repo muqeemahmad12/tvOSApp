@@ -3,7 +3,7 @@
 //  SparkForDOOH
 //
 //  QA / Dev / Prod come from which URLs are in tv-config — not from build flags.
-//  Heartbeat & Sentry "environment" is derived from the activation URL host.
+//  Heartbeat & Sentry "environment" is derived from activation_base_url and drs_base_url hosts.
 //
 
 import Foundation
@@ -47,16 +47,27 @@ final class TVRemoteConfigStore {
         return _forceUpdate
     }
 
-    /// Identifies backend tier for heartbeat payload & Sentry (from activation host, e.g. `qa-keen.doceree.com`).
+    /// Identifies backend tier for heartbeat payload & Sentry: hosts from **activation** and **drs** tv-config URLs.
+    /// Same host twice collapses to a single host; two hosts join as `host1|host2` (activation first).
     var environmentLabel: String {
         lock.lock()
-        let base = _activationBaseString
+        let act = _activationBaseString
+        let drs = _drsBaseString
         lock.unlock()
-        guard let base, !base.isEmpty else { return "unknown" }
-        if let host = URL(string: base)?.host, !host.isEmpty {
-            return host
+        let actHost = act.flatMap { Self.host(fromNormalizedBase: $0) }
+        let drsHost = drs.flatMap { Self.host(fromNormalizedBase: $0) }
+        switch (actHost, drsHost) {
+        case let (a?, d?) where a.caseInsensitiveCompare(d) == .orderedSame:
+            return a
+        case let (a?, d?):
+            return "\(a)|\(d)"
+        case let (a?, nil):
+            return a
+        case let (nil, d?):
+            return d
+        default:
+            return "unknown"
         }
-        return "unknown"
     }
 
     var sparkPortalURL: URL {
@@ -89,6 +100,15 @@ final class TVRemoteConfigStore {
         var s = raw.trimmingCharacters(in: .whitespacesAndNewlines)
         while s.hasSuffix("/") { s.removeLast() }
         return s
+    }
+
+    /// Host from a stored base URL string (adds `https://` if there is no scheme so `URL` can parse).
+    private static func host(fromNormalizedBase base: String) -> String? {
+        let trimmed = base.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmed.isEmpty else { return nil }
+        let withScheme = trimmed.contains("://") ? trimmed : "https://\(trimmed)"
+        guard let host = URL(string: withScheme)?.host, !host.isEmpty else { return nil }
+        return host
     }
 
     func activationURL(pathComponents: String...) -> URL {
@@ -207,7 +227,7 @@ enum TVRemoteConfigService {
             guard !act.isEmpty, !drs.isEmpty else { return false }
             persist(entry: entry, key: key)
             TVRemoteConfigStore.shared.apply(entry: entry, key: key)
-            print("📡 TV remote config OK [\(key)] activation host=\(TVRemoteConfigStore.shared.environmentLabel)")
+            print("📡 TV remote config OK [\(key)] environment=\(TVRemoteConfigStore.shared.environmentLabel)")
             return true
         } catch {
             return false
