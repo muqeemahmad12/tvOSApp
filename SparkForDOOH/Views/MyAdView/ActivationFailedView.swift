@@ -26,14 +26,16 @@ struct ActivationFailedView: View {
                         .foregroundColor(Color(red: 0.32, green: 0.36, blue: 0.41))
                         .lineSpacing(4)
                         .multilineTextAlignment(.leading)
-                        .frame(maxWidth: 520, alignment: .leading)
+                        .lineLimit(3)
+                        .frame(maxWidth: 920, alignment: .leading)
 
                     Text("We couldn't link this screen to your facility. Please check your internet connection and verify the pairing code/QR scan on the web dashboard.")
                         .font(.system(size: 26, weight: .regular))
                         .foregroundColor(Color(red: 0.32, green: 0.36, blue: 0.41))
                         .lineSpacing(4)
                         .multilineTextAlignment(.leading)
-                        .frame(maxWidth: 640, alignment: .leading)
+                        .lineLimit(3)
+                        .frame(maxWidth: 980, alignment: .leading)
                         .padding(.top, 62)
                 }
                 .frame(maxWidth: .infinity, alignment: .leading)

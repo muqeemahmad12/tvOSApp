@@ -53,7 +53,7 @@ Event names live in **`SentryAnalyticsEvent`** and follow **`app.<area>.<action>
 | Network | `app.network.connectivity_lost` / `connectivity_restored` (reason tag) | `connectivity_lost` / `connectivity_restored` (`network`) |
 | Playlist | `playlistLoaded`, `playlistEmpty`, `playlistFetchFailed`, `playlistUsedCache` | `empty_response`, fetch details, `cache_fallback_after_error` (`playlist`) |
 
-**POC test crash (DEBUG):** `SentryService.shared.triggerTestCrashForPOC()` raises an `NSException` for Issues + symbolication checks. Trigger it either from LLDB (`expr -l Swift -- SentryService.shared.triggerTestCrashForPOC()`) or by launching with `--sentry-crash-test` (already present in the shared app scheme). The launch-arg trigger is one-time per app install so the next launch can upload the crash.
+**POC test crash (DEBUG):** `SentryService.shared.triggerTestCrashForPOC()` raises an `NSException` for Issues + symbolication checks. Trigger from LLDB (`expr -l Swift -- SentryService.shared.triggerTestCrashForPOC()`), or enable **`--sentry-crash-test`** under **Product → Scheme → Edit Scheme → Run → Arguments** (the shared scheme ships with this argument **unchecked** so normal runs do not crash). The launch-arg path is **one-time per app install** so the next launch can upload the crash; erase the app or clear `UserDefaults` key `com.doceree.sparkfordooh.debug.sentryCrashTestTriggered` to test again.
 
 ### Adding new analytics
 

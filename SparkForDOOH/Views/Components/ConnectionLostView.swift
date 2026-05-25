@@ -28,19 +28,18 @@ struct ConnectionLostView: View {
                         .foregroundColor(Color(red: 0.32, green: 0.36, blue: 0.41))
                         .lineSpacing(4)
                         .multilineTextAlignment(.leading)
-                        .lineLimit(2)
-                        .frame(maxWidth: 520, alignment: .leading)
+                        .lineLimit(3)
+                        .frame(maxWidth: 920, alignment: .leading)
                         .padding(.trailing, 8)
                         .padding(.bottom, 100) // extra gap before description
                     
-                    Text("""
-Please check power and internet (Wi-Fi/Ethernet) for this device. If the network is stable, restart the screen/app and confirm the connection is restored. If the issue continues, contact your IT to verify firewall/network access and reconnect this screen.
-""")
+                    Text("Please check power and internet (Wi-Fi/Ethernet) for this device. If the network is stable, restart the screen/app and confirm the connection is restored. If the issue continues, contact your IT to verify firewall/network access and reconnect this screen.")
                         .font(.system(size: 30, weight: .regular))
                         .foregroundColor(Color(red: 0.32, green: 0.36, blue: 0.41))
                         .lineSpacing(4)
                         .multilineTextAlignment(.leading)
-                        .frame(maxWidth: 700, alignment: .leading)
+                        .lineLimit(3)
+                        .frame(maxWidth: 980, alignment: .leading)
                 }
                 .frame(maxWidth: .infinity, alignment: .leading)
                 .padding(.leading, 60)

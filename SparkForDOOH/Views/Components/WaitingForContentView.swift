@@ -27,16 +27,16 @@ struct WaitingForContentView: View {
                         .foregroundColor(Color(red: 0.32, green: 0.36, blue: 0.41))
                         .lineSpacing(4)
                         .multilineTextAlignment(.leading)
-                        .frame(maxWidth: 520, alignment: .leading)
+                        .lineLimit(3)
+                        .frame(maxWidth: 920, alignment: .leading)
                     
-                    Text("""
-Please contact your Facility Manager/Administrator to assign or schedule the content source to this screen. Once assigned and synced, playback will start automatically; no restart needed!
-""")
+                    Text("Please contact your Facility Manager/Administrator to assign or schedule the content source to this screen. Once assigned and synced, playback will start automatically; no restart needed!")
                         .font(.system(size: 26, weight: .regular))
                         .foregroundColor(Color(red: 0.32, green: 0.36, blue: 0.41))
                         .lineSpacing(4)
                         .multilineTextAlignment(.leading)
-                        .frame(maxWidth: 640, alignment: .leading)
+                        .lineLimit(3)
+                        .frame(maxWidth: 980, alignment: .leading)
                         .padding(.top, 62) // increased gap by 50px
                 }
                 .frame(maxWidth: .infinity, alignment: .leading)

@@ -8,6 +8,9 @@
 import SwiftUI
 
 struct LoadingView: View {
+    /// When set (typically `0...1` from `AdPlayerViewModel.preloadProgress`), shows a linear bar and percentage while assets download.
+    var downloadProgress: Double? = nil
+
     var body: some View {
         GeometryReader { geo in
             ZStack {
@@ -30,6 +33,21 @@ struct LoadingView: View {
                             .foregroundColor(Color(hex: "#505050"))
                             .multilineTextAlignment(.leading)
                             .padding(.top, 30)
+
+                        if let p = downloadProgress {
+                            VStack(alignment: .leading, spacing: 12) {
+                                ProgressView(value: min(1, max(0, p)), total: 1.0)
+                                    .progressViewStyle(.linear)
+                                    .tint(Color(hex: "#138bcc"))
+                                    .frame(maxWidth: min(geo.size.width * 0.28, 720), minHeight: 10, alignment: .leading)
+
+                                Text("\(Int((min(1, max(0, p)) * 100).rounded()))%")
+                                    .font(.system(size: 28, weight: .semibold))
+                                    .foregroundColor(Color(hex: "#138bcc"))
+                                    .accessibilityLabel("Download progress \(Int((min(1, max(0, p)) * 100).rounded())) percent")
+                            }
+                            .padding(.top, 28)
+                        }
 
                         Spacer(minLength: 0)
                     }

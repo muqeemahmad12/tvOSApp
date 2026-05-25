@@ -22,7 +22,7 @@ struct AdPlayerView: View {
             Color.black.ignoresSafeArea()
 
             if viewModel.isPreloading {
-                LoadingView()
+                LoadingView(downloadProgress: viewModel.preloadProgress)
             } else if let group = viewModel.currentGroup {
                 GeometryReader { geo in
                     let videos = group.ii.filter { $0.assettype.lowercased() == "video" }

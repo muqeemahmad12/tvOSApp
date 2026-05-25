@@ -66,6 +66,7 @@ struct SparkForDOOHApp: App {
     var body: some Scene {
         WindowGroup {
             LandingGateView()
+                .remoteMenuExitConfirmation()
         }
     }
 }
