@@ -65,9 +65,7 @@ final class AppRootViewModel: ObservableObject {
     /// Save activation state when device is activated
     static func saveActivation(secureKey: String?, deviceCode: String?, tickerMessage: String? = nil, logoUrl: String? = nil) {
         UserDefaults.standard.set(true, forKey: isActivatedKey)
-        if let secureKey = secureKey {
-            UserDefaults.standard.set(secureKey, forKey: secureKeyKey)
-        }
+        updateSecureKey(secureKey)
         if let deviceCode = deviceCode {
             UserDefaults.standard.set(deviceCode, forKey: deviceCodeKey)
         }
@@ -84,6 +82,19 @@ final class AppRootViewModel: ObservableObject {
             attributes: ["has_ticker": (tickerMessage != nil && !(tickerMessage?.isEmpty ?? true)) ? "true" : "false"]
         )
         SentryService.shared.breadcrumb(category: "activation", message: "credentials_saved", data: [:])
+    }
+
+    /// Persist the latest `secureKey` from the activation poll API.
+    static func updateSecureKey(_ secureKey: String?) {
+        let trimmed = secureKey?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
+        guard !trimmed.isEmpty else { return }
+        let previous = UserDefaults.standard.string(forKey: secureKeyKey)
+        UserDefaults.standard.set(trimmed, forKey: secureKeyKey)
+        if previous != trimmed {
+            print("🔑 secureKey updated from poll (was \(previous ?? "nil"), now \(trimmed))")
+        } else {
+            print("🔑 secureKey from poll unchanged")
+        }
     }
     
     /// Get saved secure key

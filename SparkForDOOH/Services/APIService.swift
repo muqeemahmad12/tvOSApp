@@ -22,50 +22,51 @@ final class APIService {
         var request = URLRequest(url: url)
         request.httpMethod = "POST"
         request.setValue("application/json", forHTTPHeaderField: "Content-Type")
-        request.setValue(AppConfig.current.drsQuestApiKey, forHTTPHeaderField: "x-hs-key")
+        // quest: x-api-key = secureKey from activation poll; x-dev-id = device code.
+        let secureKey = await AppRootViewModel.getSavedSecureKey() ?? ""
+        request.setValue(secureKey, forHTTPHeaderField: "x-api-key")
         let deviceCode = await AppRootViewModel.getSavedDeviceCode() ?? ""
         request.setValue(deviceCode, forHTTPHeaderField: "x-dev-id")
 
-        let secureKey = await AppRootViewModel.getSavedSecureKey() ?? ""
-        request.setValue(secureKey, forHTTPHeaderField: "x-api-key")
-
-        // Only reqNum in body - screenId is derived from securityKey on server
         let payload: [String: Any] = [
             "reqNum": reqNum
         ]
         request.httpBody = try JSONSerialization.data(withJSONObject: payload, options: [])
 
+        let bodyString = String(data: request.httpBody ?? Data(), encoding: .utf8) ?? ""
+        print("📤 Quest request")
+        print("   \(request.httpMethod ?? "POST") \(url.absoluteString)")
+        print("   Headers:")
+        print("     Content-Type: \(request.value(forHTTPHeaderField: "Content-Type") ?? "")")
+        print("     x-api-key (secureKey): \(secureKey)")
+        print("     x-dev-id: \(deviceCode)")
+        print("   Body: \(bodyString)")
+
         do {
             let (data, response) = try await URLSession.shared.data(for: request)
-            
-            // Log request details for debugging
-            print("📤 API Request: \(url)")
-            print("📤 Payload: reqNum=\(reqNum)")
-            print("📤 Header x-api-key (secureKey): length \(secureKey.count)")
-            print("📤 Header x-hs-key: DRS quest key")
-            print("📤 Header x-dev-id: \(deviceCode)")
-        
-        if let raw = String(data: data, encoding: .utf8) {
-            print("📥 Raw quest response: \(raw)")
-        }
 
             guard let http = response as? HTTPURLResponse else {
                 throw AppError.invalidResponse
             }
-            
-            // Log response even if not 2xx
+
+            let raw = String(data: data, encoding: .utf8) ?? ""
+            print("📥 Quest response HTTP \(http.statusCode), \(data.count) bytes")
+            print("📥 Raw quest response: \(raw.isEmpty ? "<empty>" : raw)")
+
             if !(200...299).contains(http.statusCode) {
                 print("❌ API Error - Status: \(http.statusCode)")
-                if let raw = String(data: data, encoding: .utf8) {
-                    print("❌ Response Body:\n\(raw)")
-                }
+                throw AppError.invalidResponse
+            }
+
+            guard !data.isEmpty else {
+                print("❌ Quest returned empty body (HTTP \(http.statusCode))")
                 throw AppError.invalidResponse
             }
 
             do {
                 let decoded = try JSONDecoder().decode(ItemSeqInfoResponse.self, from: data)
                 let groups = decoded.groupedAds
-            NetworkMonitor.shared.markOnline(reason: "QuestSuccess")
+                NetworkMonitor.shared.markOnline(reason: "QuestSuccess")
                 print("✅ API Success — Total Groups: \(groups.count)")
                 for group in groups {
                     print("▶️ Sequence \(group.sequence): \(group.ii.count) ads")
@@ -76,9 +77,7 @@ final class APIService {
                 return decoded
             } catch {
                 print("❌ Decoding error: \(error)")
-                if let raw = String(data: data, encoding: .utf8) {
-                    print("Raw JSON:\n\(raw)")
-                }
+                print("Raw JSON:\n\(raw)")
                 throw AppError.decoding
             }
         } catch {

@@ -22,8 +22,17 @@ final class ActivationAPI {
         req.setValue("application/json", forHTTPHeaderField: "Content-Type")
         req.httpBody = try JSONEncoder().encode(payload)
 
+        if let bodyString = String(data: req.httpBody ?? Data(), encoding: .utf8) {
+            print("📤 Activation request: \(url.absoluteString)")
+            print("   Body: \(bodyString)")
+        }
+
         do {
         let (data, resp) = try await URLSession.shared.data(for: req)
+
+        if let raw = String(data: data, encoding: .utf8) {
+            print("📥 Activation response: \(raw)")
+        }
 
         guard let http = resp as? HTTPURLResponse,
               (200...299).contains(http.statusCode) else {

@@ -45,7 +45,8 @@ final class ActivationPollAPI {
                 throw AppError.server(message: decoded.message)
         }
         NetworkMonitor.shared.markOnline(reason: "ActivationPollSuccess")
-        
+        // Always keep the latest secureKey from poll (PENDING or ACTIVE).
+        await AppRootViewModel.updateSecureKey(pollData.secureKey)
         print("pollData: ", pollData)
         return pollData
         } catch let decodingError as DecodingError {

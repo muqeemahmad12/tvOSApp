@@ -136,8 +136,8 @@ final class TVRemoteConfigStore {
             return Self.defaultDrsQuestURL(usingHostFrom: AppConfig.current.drsBaseURL)
         }
         let trimmed = base.trimmingCharacters(in: CharacterSet(charactersIn: "/"))
-        // Full prefix in config: .../drs/v2 → append /quest
-        if trimmed.lowercased().contains("/drs/v2") {
+        // Full prefix in config: .../drs → append /quest
+        if trimmed.lowercased().contains("/drs") {
             return URL(string: trimmed + "/quest") ?? Self.defaultDrsQuestURL(usingHostFrom: AppConfig.current.drsBaseURL)
         }
         // Host only, e.g. https://qa-drs-service.doceree.com
@@ -145,7 +145,7 @@ final class TVRemoteConfigStore {
     }
 
     private static func defaultDrsQuestURL(usingHostFrom root: URL) -> URL {
-        root.appendingPathComponent("drs").appendingPathComponent("v2").appendingPathComponent("quest")
+        root.appendingPathComponent("drs").appendingPathComponent("quest")
     }
 }
 

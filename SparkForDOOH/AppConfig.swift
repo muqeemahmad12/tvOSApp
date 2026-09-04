@@ -15,9 +15,9 @@ struct AppConfig {
     let sparkPortalURL: URL
     let screenId: String
     let sentryDSN: String
-    /// x-api-key for activation / heartbeat (Keen).
+    /// `x-api-key` for activation / heartbeat (Keen).
     let apiKey: String
-    /// `x-hs-key` on DRS `/drs/v2/quest` (different from heartbeat `x-api-key`).
+    /// Static DRS quest key (Info.plist `DRS_QUEST_API_KEY`); not used as quest `x-api-key` (that is poll `secureKey`).
     let drsQuestApiKey: String
     let adsCacheMaxBytes: UInt64
     let playlistRepeatInterval: TimeInterval
