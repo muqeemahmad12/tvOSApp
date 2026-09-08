@@ -9,6 +9,11 @@ import Foundation
 import AVKit
 import SwiftUI
 
+extension Notification.Name {
+    /// Posted when periodic quest sync applies a non-empty playlist to the player.
+    static let questPlaylistApplied = Notification.Name("com.doceree.sparkfordooh.questPlaylistApplied")
+}
+
 /// Orchestrates ad playback: preloads assets, manages the current group,
 /// loops through the playlist, and periodically syncs updated content.
 @MainActor
@@ -40,7 +45,6 @@ final class AdPlayerViewModel: ObservableObject {
     fileprivate var consecutiveSyncFailures = 0
     fileprivate let maxSyncFailuresBeforeFallback = 5
     @Published var isUsingFallbackContent = false
-    @Published var isPlayingSafeContent = false
     
     // MARK: - Background download tracking
     fileprivate var isPendingDownloadComplete = false
@@ -83,7 +87,8 @@ final class AdPlayerViewModel: ObservableObject {
 extension AdPlayerViewModel {
     /// Entry point: prepare assets, then begin playback and auto-sync.
     func startPlayback(with groups: [AdSequenceGroup]) {
-        // Handle empty playlist with safe content fallback
+        // Empty / no content: do not start playback, but start the same sync timer
+        // used on success so the next quest still runs on schedule.
         if groups.isEmpty {
             if groupedAds.isEmpty {
                 print("⚠️ Empty playlist received - waiting for content (no playback)")
@@ -91,14 +96,10 @@ extension AdPlayerViewModel {
             } else {
                 print("ℹ️ Empty playlist received - keeping existing cached playback")
             }
+            if !disablePreloadingAndValidation {
+                startAutoSync(screenId: screenId)
+            }
             return
-        }
-        
-        // If we were showing placeholder/safe content, allow real content to take over
-        if isPlayingSafeContent {
-            print("✅ Real content received - replacing safe content fallback")
-            isPlayingSafeContent = false
-            isPreloading = false  // Reset so we can start real playback
         }
         
         // Prevent multiple simultaneous startPlayback calls (but not if we have no content yet)
@@ -107,8 +108,8 @@ extension AdPlayerViewModel {
             return
         }
         
-        // If we already have REAL content playing, store as pending instead
-        if !groupedAds.isEmpty && currentGroup != nil && !isPlayingSafeContent {
+        // If we already have content playing, store as pending instead
+        if !groupedAds.isEmpty && currentGroup != nil {
             print("🔄 Already playing - storing as pending playlist")
             pendingGroups = groups
             return
@@ -156,29 +157,6 @@ extension AdPlayerViewModel {
         if activePlayer != nil, currentGroup != nil {
             activePlayer?.play()
             print("▶️ Resumed playback after app became active")
-        }
-    }
-    
-    /// Handle empty playlist by falling back to safe content
-    private func handleEmptyPlaylistFallback() {
-        isPlayingSafeContent = true
-        
-        // Try to use safe content from bundle
-        if let safeGroup = SafeContentManager.shared.getSafeContentGroup() {
-            print("🛡️ Using bundled safe content as fallback")
-            groupedAds = [safeGroup]
-            currentIndex = 0
-            playCurrentGroup()
-            
-            // Still try to sync in case content becomes available
-            startAutoSync(screenId: screenId)
-        } else {
-            print("⚠️ No safe content available - showing placeholder")
-            // The view will show PlayerLoadingPlaceholderView
-            // Note: Do NOT set isPreloading = true here, as it would block real content from loading
-            
-            // Keep trying to sync
-            startAutoSync(screenId: screenId)
         }
     }
 }
@@ -362,8 +340,7 @@ private extension AdPlayerViewModel {
                 SentryAnalyticsEvent.playbackStarted,
                 attributes: [
                     "sequence": "\(group.sequence)",
-                    "group_items": "\(group.ii.count)",
-                    "safe_content": isPlayingSafeContent ? "true" : "false"
+                    "group_items": "\(group.ii.count)"
                 ]
             )
             SentryService.shared.breadcrumb(
@@ -562,6 +539,7 @@ private extension AdPlayerViewModel {
 // MARK: - Sync helpers
 private extension AdPlayerViewModel {
     func startAutoSync(screenId: String) {
+        guard syncTimer == nil else { return }
         syncTimer = Timer.scheduledTimer(withTimeInterval: repeatInTime, repeats: true) { [weak self] _ in
             Task { @MainActor in
                 self?.syncAds(with: screenId)
@@ -583,8 +561,12 @@ private extension AdPlayerViewModel {
                 pendingGroups = response.groupedAds
                 isPendingDownloadComplete = false
                 
-                // Cache the playlist for offline use
-                PlaylistCacheService.shared.savePlaylist(response.groupedAds)
+                // Only cache non-empty playlists so a blank quest cannot wipe offline fallback.
+                if !response.groupedAds.isEmpty {
+                    PlaylistCacheService.shared.savePlaylist(response.groupedAds)
+                } else {
+                    print("ℹ️ Empty quest sync — keeping existing playlist cache")
+                }
                 
                 // Start background download immediately (don't wait for loop to finish)
                 await startBackgroundDownload()
@@ -625,7 +607,7 @@ private extension AdPlayerViewModel {
         print("✅ Background download complete - ready to apply")
         
         // If we are not actively playing real content, apply immediately
-        if groupedAds.isEmpty || isPlayingSafeContent || currentGroup == nil {
+        if groupedAds.isEmpty || currentGroup == nil {
             await applyPendingPlaylistSafely()
         }
     }
@@ -703,6 +685,13 @@ private extension AdPlayerViewModel {
 
         print("🎉 NEW playlist ready — begin playback")
         playCurrentGroup()
+
+        // Keep RootView waiting overlay in sync (it watches AdPlaylistViewModel.groupedAds).
+        NotificationCenter.default.post(
+            name: .questPlaylistApplied,
+            object: nil,
+            userInfo: ["groupedAds": newGroups]
+        )
     }
 }
 

@@ -19,10 +19,40 @@ final class AdPlaylistViewModel: ObservableObject {
     @Published var isUsingCachedPlaylist = false          // True if using offline cache
     
     private let cacheService = PlaylistCacheService.shared
+    private var questPlaylistObserver: NSObjectProtocol?
 
     init() {
         // Always hydrate from cache immediately so offline launches can play.
         loadCachedPlaylistIfAvailable()
+
+        questPlaylistObserver = NotificationCenter.default.addObserver(
+            forName: .questPlaylistApplied,
+            object: nil,
+            queue: .main
+        ) { [weak self] notification in
+            guard let groups = notification.userInfo?["groupedAds"] as? [AdSequenceGroup],
+                  !groups.isEmpty else { return }
+            Task { @MainActor in
+                self?.applySyncedPlaylist(groups)
+            }
+        }
+    }
+
+    deinit {
+        if let questPlaylistObserver {
+            NotificationCenter.default.removeObserver(questPlaylistObserver)
+        }
+    }
+
+    /// Update published playlist when player sync applies content (dismisses waiting screen).
+    func applySyncedPlaylist(_ groups: [AdSequenceGroup]) {
+        guard !groups.isEmpty else { return }
+        if groups == groupedAds { return }
+        groupedAds = groups
+        ads = groups.flatMap { $0.ii }
+        isUsingCachedPlaylist = false
+        errorMessage = nil
+        print("📂 Playlist VM updated from sync — waiting screen can dismiss")
     }
     
     /// Load cached playlist immediately on init (for fast launch)
@@ -36,6 +66,23 @@ final class AdPlaylistViewModel: ObservableObject {
     }
 
     func fetchAds(screenId: String, reqNum: Int) {
+        // Offline: prefer cached playlist immediately — do not retry quest forever.
+        if !NetworkMonitor.shared.isConnected {
+            if groupedAds.isEmpty {
+                loadCachedPlaylistIfAvailable()
+            }
+            if !groupedAds.isEmpty {
+                print("📴 Offline — playing cached playlist (skipping quest fetch)")
+                isLoading = false
+                errorMessage = nil
+                return
+            }
+            print("📴 Offline — no cached playlist available")
+            isLoading = false
+            errorMessage = "No network connection"
+            return
+        }
+
         isLoading = true
         errorMessage = nil
 

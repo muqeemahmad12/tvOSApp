@@ -29,8 +29,8 @@ struct RootView: View {
                 }
             }
             
-            // Show offline overlay only during activation when we truly have no content.
-            if appVM.phase == .activating && !networkMonitor.isConnected && adListVM.groupedAds.isEmpty {
+            // Offline with nothing to play (activation or player).
+            if !networkMonitor.isConnected && adListVM.groupedAds.isEmpty {
                 ConnectionLostView()
                     .transition(.opacity)
             }
@@ -52,7 +52,13 @@ struct RootView: View {
                     attributes: ["screen_id": AppConfig.current.screenId]
                 )
                 adListVM.loadCachedPlaylistIfAvailable()
-                adListVM.fetchAds(screenId: AppConfig.current.screenId, reqNum: 1)
+                if networkMonitor.isConnected {
+                    adListVM.fetchAds(screenId: AppConfig.current.screenId, reqNum: 1)
+                } else if !adListVM.groupedAds.isEmpty {
+                    print("📴 Offline restart — playing from cache; quest deferred until online")
+                } else {
+                    print("📴 Offline restart — no cache; waiting for connectivity")
+                }
             }
         }
         .onChange(of: appVM.phase) { phase in

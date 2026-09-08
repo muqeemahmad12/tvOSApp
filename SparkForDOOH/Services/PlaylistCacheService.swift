@@ -32,8 +32,13 @@ final class PlaylistCacheService {
     
     // MARK: - Public API
     
-    /// Save playlist to disk
+    /// Save playlist to disk. Empty lists are ignored so a blank API response
+    /// cannot overwrite a previously good offline cache.
     func savePlaylist(_ groups: [AdSequenceGroup]) {
+        guard !groups.isEmpty else {
+            print("ℹ️ Skipping playlist cache save — empty groups")
+            return
+        }
         do {
             let encoder = JSONEncoder()
             encoder.outputFormatting = .prettyPrinted

@@ -13,13 +13,13 @@ import UIKit
 extension Notification.Name {
     /// Posted when ticker/logo is updated from heartbeat response
     static let tickerUpdated = Notification.Name("com.doceree.sparkfordooh.tickerUpdated")
-    
+
     /// Posted when the first heartbeat succeeds (used to unlock landing/splash)
     static let initialHeartbeatSucceeded = Notification.Name("com.doceree.sparkfordooh.initialHeartbeatSucceeded")
-    
+
     /// Posted when the first heartbeat fails (used to route to registration/activation)
     static let initialHeartbeatFailed = Notification.Name("com.doceree.sparkfordooh.initialHeartbeatFailed")
-    
+
     /// Posted when a heartbeat response has data.screenStatus == "INACTIVE" (screen deactivated remotely).
     static let heartbeatScreenStatusInactive = Notification.Name("com.doceree.sparkfordooh.heartbeatScreenStatusInactive")
 }
@@ -178,6 +178,9 @@ final class HeartbeatAPI {
             request.setValue(AppConfig.current.apiKey, forHTTPHeaderField: "x-api-key")
             request.httpBody = try JSONSerialization.data(withJSONObject: payload, options: [])
             request.timeoutInterval = 30
+
+            print("💓 Heartbeat POST \(url.absoluteString)")
+            print("   x-api-key: \(AppConfig.current.apiKey)")
             
             let (data, response) = try await URLSession.shared.data(for: request)
             

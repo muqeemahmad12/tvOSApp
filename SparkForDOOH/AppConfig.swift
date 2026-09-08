@@ -54,7 +54,7 @@ struct AppConfig {
             ?? ""
         self.apiKey = apiKey
             ?? AppConfig.stringFromInfoPlist(key: "API_KEY")
-            ?? "f0172f77-966b-4be3-aef1-7fd439028a46"
+            ?? "f06d261b-c6ff-4feb-b0c2-71e54ed7b1fe"
         self.drsQuestApiKey = drsQuestApiKey
             ?? AppConfig.stringFromInfoPlist(key: "DRS_QUEST_API_KEY")
             ?? "fdd74745-a0ed-440c-ad10-3815d659a599"

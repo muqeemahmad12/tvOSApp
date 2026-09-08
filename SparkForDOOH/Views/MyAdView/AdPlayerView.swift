@@ -106,7 +106,6 @@ struct AdPlayerView: View {
         .accessibilityIdentifier("AdPlayerRootView")
         // MARK: - ViewModel Triggers
         .onChange(of: listVM.groupedAds) { newGroups in
-            // Always trigger playback - will use safe content if empty
             viewModel.startPlayback(with: newGroups)
         }
         .onAppear {
@@ -124,7 +123,6 @@ struct AdPlayerView: View {
             // Start heartbeat service
             HeartbeatAPI.shared.startHeartbeat()
             
-            // Start playback - will use safe content if list is empty
             viewModel.startPlayback(with: listVM.groupedAds)
         }
         .onDisappear {
