@@ -29,6 +29,8 @@ final class AdPlayerViewModel: ObservableObject {
     @Published var contentOpacity: Double = 1.0  // For crossfade transitions
     /// Controls when overlay UI (ticker/time/logo) should appear.
     @Published var isPlayerReadyForOverlay = false
+    /// True when there is nothing displayable (empty / Banner-only / etc.) — show waiting UI.
+    @Published var isWaitingForPlayableContent = false
 
     // MARK: - Private state
     fileprivate var pendingGroups: [AdSequenceGroup] = []
@@ -90,9 +92,9 @@ extension AdPlayerViewModel {
         // Empty / no content: do not start playback, but start the same sync timer
         // used on success so the next quest still runs on schedule.
         if groups.isEmpty {
-            if groupedAds.isEmpty {
+            if groupedAds.isEmpty || isWaitingForPlayableContent {
                 print("⚠️ Empty playlist received - waiting for content (no playback)")
-                isPreloading = false
+                enterWaitingForPlayableContent()
             } else {
                 print("ℹ️ Empty playlist received - keeping existing cached playback")
             }
@@ -109,7 +111,7 @@ extension AdPlayerViewModel {
         }
         
         // If we already have content playing, store as pending instead
-        if !groupedAds.isEmpty && currentGroup != nil {
+        if !groupedAds.isEmpty && currentGroup != nil && !isWaitingForPlayableContent {
             print("🔄 Already playing - storing as pending playlist")
             pendingGroups = groups
             return
@@ -119,7 +121,13 @@ extension AdPlayerViewModel {
 
         // In test mode, keep this synchronous and skip heavy operations.
         if disablePreloadingAndValidation {
-            groupedAds = groups
+            let playable = Self.displayableGroups(from: groups)
+            guard !playable.isEmpty else {
+                enterWaitingForPlayableContent()
+                return
+            }
+            isWaitingForPlayableContent = false
+            groupedAds = playable
             playCurrentGroup()
             return
         }
@@ -129,11 +137,36 @@ extension AdPlayerViewModel {
         isPlayerReadyForOverlay = false
         
         Task {
-            groupedAds = await filterUnplayableAds(newAds: groups) // remove bad videos before playback
+            let playable = await filterUnplayableAds(newAds: groups) // drops Banner / invalid video
+            guard !playable.isEmpty else {
+                print("⚠️ No displayable image/video creatives — waiting for content")
+                enterWaitingForPlayableContent()
+                startAutoSync(screenId: screenId)
+                return
+            }
+            isWaitingForPlayableContent = false
+            groupedAds = playable
             await preloadAllAssets()  // This manages isPreloading internally
             playCurrentGroup()
             startAutoSync(screenId: screenId)
         }
+    }
+
+    /// Stop playback UI and wait for the next quest to deliver image/video creatives.
+    func enterWaitingForPlayableContent() {
+        isWaitingForPlayableContent = true
+        isPreloading = false
+        isPlayerReadyForOverlay = false
+        timer?.invalidate()
+        activePlayer?.pause()
+        activePlayer = nil
+        currentGroup = nil
+        groupedAds = []
+        // Keep sync alive so the next quest can restore content.
+        if !disablePreloadingAndValidation {
+            startAutoSync(screenId: screenId)
+        }
+        print("⏳ Showing waiting-for-content (no playable creatives)")
     }
 
     /// Stop playback and any timers.
@@ -288,29 +321,34 @@ private extension AdPlayerViewModel {
 
 // MARK: - Playback helpers
 private extension AdPlayerViewModel {
-    /// Remove unplayable video items & empty groups.
+    static func isDisplayableAsset(_ ad: AdItemModel) -> Bool {
+        ad.isDisplayableAsset
+    }
+
+    static func displayableGroups(from groups: [AdSequenceGroup]) -> [AdSequenceGroup] {
+        groups.displayableGroups()
+    }
+
+    /// Keep only displayable image/video items; drop Banner and other types; drop invalid videos.
     func filterUnplayableAds(newAds: [AdSequenceGroup]) async -> [AdSequenceGroup] {
-        print("🔎 Validating playable videos before starting playback…")
+        print("🔎 Validating displayable creatives before starting playback…")
         
         var newGroups: [AdSequenceGroup] = []
 
-        for group in newAds {
+        for group in newAds.displayableGroups() {
             var keptAds: [AdItemModel] = []
 
             for ad in group.ii {
-                // Images are always kept
-                if ad.assettype.lowercased() != "video" {
+                let type = ad.assettype.lowercased()
+                if type == "image" {
                     keptAds.append(ad)
                     continue
                 }
-
-                // For video, require a minimally valid URL. Do NOT drop videos based on playability checks here;
-                // rely on AVPlayer at runtime to attempt playback, even if offline during preload.
+                // Only video remains after displayableGroups()
                 guard URL(string: ad.itemurl) != nil || localURLs[ad.itemurl] != nil else {
                     print("❌ Removing (invalid URL):", ad.itemurl)
                     continue
                 }
-
                 keptAds.append(ad)
             }
 
@@ -328,9 +366,24 @@ private extension AdPlayerViewModel {
 
     /// Play the current group (from local cache).
     func playCurrentGroup() {
-        guard currentIndex < groupedAds.count else { return }
+        // Skip ahead past any remaining non-displayable groups (defensive).
+        while currentIndex < groupedAds.count {
+            let candidate = groupedAds[currentIndex]
+            if candidate.ii.contains(where: { Self.isDisplayableAsset($0) }) {
+                break
+            }
+            print("⏭️ Skipping group \(candidate.sequence) — no image/video")
+            currentIndex += 1
+        }
+
+        guard currentIndex < groupedAds.count else {
+            enterWaitingForPlayableContent()
+            return
+        }
+
         let group = groupedAds[currentIndex]
         currentGroup = group
+        isWaitingForPlayableContent = false
         print("▶️ Playing group \(group.sequence) — \(group.ii.count) ads")
         isPlayerReadyForOverlay = true
 
@@ -557,20 +610,31 @@ private extension AdPlayerViewModel {
                                                                             reqNum: reqNum)
                 print("🔄 Sync data fetched: \(response.groupedAds.count) groups")
                 
-                // Store pending groups
-                pendingGroups = response.groupedAds
+                // Store pending groups (displayable only — Banner-only quests are not playable)
+                let playablePending = response.groupedAds.displayableGroups()
+                pendingGroups = playablePending
                 isPendingDownloadComplete = false
                 
-                // Only cache non-empty playlists so a blank quest cannot wipe offline fallback.
-                if !response.groupedAds.isEmpty {
-                    PlaylistCacheService.shared.savePlaylist(response.groupedAds)
+                // Only cache non-empty playable playlists so blank/Banner quests cannot wipe offline fallback.
+                if !playablePending.isEmpty {
+                    PlaylistCacheService.shared.savePlaylist(playablePending)
                 } else {
-                    print("ℹ️ Empty quest sync — keeping existing playlist cache")
+                    print("ℹ️ Empty/unplayable quest sync — keeping existing playlist cache")
+                    // If nothing is playing, show waiting immediately and keep polling.
+                    if groupedAds.isEmpty || currentGroup == nil || isWaitingForPlayableContent {
+                        enterWaitingForPlayableContent()
+                        NotificationCenter.default.post(
+                            name: .questPlaylistApplied,
+                            object: nil,
+                            userInfo: ["groupedAds": [AdSequenceGroup]()]
+                        )
+                    }
                 }
                 
                 // Start background download immediately (don't wait for loop to finish)
-                await startBackgroundDownload()
-                
+                if !playablePending.isEmpty {
+                    await startBackgroundDownload()
+                }                
                 // Reset failure counter on success
                 consecutiveSyncFailures = 0
                 isUsingFallbackContent = false
@@ -633,7 +697,20 @@ private extension AdPlayerViewModel {
 
         print("📥 Applying NEW playlist (downloads already complete)…")
 
-        let newGroups = pendingGroups
+        let newGroups = await filterUnplayableAds(newAds: pendingGroups)
+        pendingGroups.removeAll()
+        isPendingDownloadComplete = false
+
+        guard !newGroups.isEmpty else {
+            print("⚠️ Pending playlist has no displayable creatives — waiting for content")
+            enterWaitingForPlayableContent()
+            NotificationCenter.default.post(
+                name: .questPlaylistApplied,
+                object: nil,
+                userInfo: ["groupedAds": [AdSequenceGroup]()]
+            )
+            return
+        }
 
         // STEP 1 — Cleanup old unused files (downloads already done in background)
         cleanupObsoleteFiles(keeping: newGroups)
@@ -665,9 +742,8 @@ private extension AdPlayerViewModel {
         print("📊 Rebuild complete: \(foundCount) found, \(missingCount) missing")
 
         // STEP 5 — Apply playlist
+        isWaitingForPlayableContent = false
         groupedAds = newGroups
-        pendingGroups.removeAll()
-        isPendingDownloadComplete = false  // Reset for next sync
         currentIndex = 0
         lastAppliedSync = Date()
 

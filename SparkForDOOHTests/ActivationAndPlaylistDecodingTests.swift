@@ -73,4 +73,37 @@ final class ActivationAndPlaylistDecodingTests: XCTestCase {
         XCTAssertEqual(groups.first?.sequence, 2, "Groups should be sorted by sequence ascending")
         XCTAssertTrue(groups.first?.is_active == true)
     }
+
+    func testItemSeqInfoAllowsNullItemId() throws {
+        let json = """
+        {
+          "screenid": "174",
+          "status": "OK",
+          "item1": [
+            {
+              "facilityid": "F1",
+              "sequence": 1,
+              "is_active": true,
+              "ii": [
+                {
+                  "itemid": "10",
+                  "assettype": "Image",
+                  "itemurl": "https://example.com/a.png"
+                },
+                {
+                  "itemid": null,
+                  "assettype": "Image",
+                  "itemurl": "https://example.com/bad.png"
+                }
+              ]
+            }
+          ]
+        }
+        """
+        let decoded = try JSONDecoder().decode(ItemSeqInfoResponse.self, from: Data(json.utf8))
+        let playable = decoded.item1.displayableGroups()
+        XCTAssertEqual(playable.count, 1)
+        XCTAssertEqual(playable.first?.ii.count, 1)
+        XCTAssertEqual(playable.first?.ii.first?.itemid, "10")
+    }
 }

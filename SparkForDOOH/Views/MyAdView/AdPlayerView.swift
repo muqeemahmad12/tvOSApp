@@ -21,7 +21,9 @@ struct AdPlayerView: View {
         ZStack {
             Color.black.ignoresSafeArea()
 
-            if viewModel.isPreloading {
+            if viewModel.isWaitingForPlayableContent {
+                WaitingForContentView()
+            } else if viewModel.isPreloading {
                 LoadingView(downloadProgress: viewModel.preloadProgress)
             } else if let group = viewModel.currentGroup {
                 GeometryReader { geo in
@@ -89,7 +91,12 @@ struct AdPlayerView: View {
                     }
                 }
             } else {
-                LoadingView()
+                // No current group yet — prefer waiting over perpetual black/loading when playlist is empty.
+                if listVM.groupedAds.isEmpty && !listVM.isLoading {
+                    WaitingForContentView()
+                } else {
+                    LoadingView()
+                }
             }
             
             // MARK: - Ticker/Banner Overlay (with time display)
@@ -161,4 +168,3 @@ struct AdPlayerView: View {
         return viewModel.imageCache[ad.itemurl]
     }
 }
-

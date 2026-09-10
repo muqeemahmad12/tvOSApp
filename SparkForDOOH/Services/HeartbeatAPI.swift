@@ -175,12 +175,12 @@ final class HeartbeatAPI {
             var request = URLRequest(url: url)
             request.httpMethod = "POST"
             request.setValue("application/json", forHTTPHeaderField: "Content-Type")
-            request.setValue(AppConfig.current.apiKey, forHTTPHeaderField: "x-api-key")
+            request.setValue(TVRemoteConfigStore.shared.appKey, forHTTPHeaderField: "x-api-key")
             request.httpBody = try JSONSerialization.data(withJSONObject: payload, options: [])
             request.timeoutInterval = 30
 
             print("💓 Heartbeat POST \(url.absoluteString)")
-            print("   x-api-key: \(AppConfig.current.apiKey)")
+            print("   x-api-key: \(TVRemoteConfigStore.shared.appKey)")
             
             let (data, response) = try await URLSession.shared.data(for: request)
             

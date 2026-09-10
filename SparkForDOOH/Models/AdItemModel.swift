@@ -71,6 +71,52 @@ struct AdItemModel: Codable, Identifiable, Equatable {
         case trackerlist, itemspeciality, subcampaignid, schedulestarttime, scheduleendtime
     }
 
+    init(
+        itemid: String,
+        assettype: String,
+        assetcat: String? = nil,
+        itemurl: String,
+        itemsize: String? = nil,
+        isFlex: Bool? = nil,
+        trackerlist: [String]? = nil,
+        itemspeciality: String? = nil,
+        subcampaignid: String? = nil,
+        schedulestarttime: String? = nil,
+        scheduleendtime: String? = nil,
+        sequence: Int? = nil,
+        facilityid: String? = nil
+    ) {
+        self.itemid = itemid
+        self.assettype = assettype
+        self.assetcat = assetcat
+        self.itemurl = itemurl
+        self.itemsize = itemsize
+        self.isFlex = isFlex
+        self.trackerlist = trackerlist
+        self.itemspeciality = itemspeciality
+        self.subcampaignid = subcampaignid
+        self.schedulestarttime = schedulestarttime
+        self.scheduleendtime = scheduleendtime
+        self.sequence = sequence
+        self.facilityid = facilityid
+    }
+
+    init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        // API sometimes sends null itemid/itemurl — treat as empty and drop later.
+        itemid = try container.decodeIfPresent(String.self, forKey: .itemid) ?? ""
+        assettype = try container.decode(String.self, forKey: .assettype)
+        assetcat = try container.decodeIfPresent(String.self, forKey: .assetcat)
+        itemurl = try container.decodeIfPresent(String.self, forKey: .itemurl) ?? ""
+        itemsize = try container.decodeIfPresent(String.self, forKey: .itemsize)
+        isFlex = try container.decodeIfPresent(Bool.self, forKey: .isFlex)
+        trackerlist = try container.decodeIfPresent([String].self, forKey: .trackerlist)
+        itemspeciality = try container.decodeIfPresent(String.self, forKey: .itemspeciality)
+        subcampaignid = try container.decodeIfPresent(String.self, forKey: .subcampaignid)
+        schedulestarttime = try container.decodeIfPresent(String.self, forKey: .schedulestarttime)
+        scheduleendtime = try container.decodeIfPresent(String.self, forKey: .scheduleendtime)
+    }
+
     static func == (lhs: AdItemModel, rhs: AdItemModel) -> Bool {
         lhs.itemid == rhs.itemid && lhs.itemurl == rhs.itemurl
     }
@@ -88,6 +134,12 @@ extension ItemSeqInfoResponse {
 
 // size helper
 extension AdItemModel {
+    /// Only `image` and `video` are shown on the player (e.g. `Banner` is not displayable).
+    var isDisplayableAsset: Bool {
+        let type = assettype.lowercased()
+        return type == "image" || type == "video"
+    }
+
     var isTooLarge: Bool {
         guard let size = itemsize else { return false }
         let components = size.lowercased().split(separator: "x")
@@ -97,5 +149,20 @@ extension AdItemModel {
             return false
         }
         return width > 2126 || height > 3840
+    }
+}
+
+extension Array where Element == AdSequenceGroup {
+    /// Groups containing at least one image/video creative (Banner-only groups dropped).
+    func displayableGroups() -> [AdSequenceGroup] {
+        compactMap { group in
+            let kept = group.ii.filter {
+                $0.isDisplayableAsset && !$0.itemid.isEmpty && !$0.itemurl.isEmpty
+            }
+            guard !kept.isEmpty else { return nil }
+            var copy = group
+            copy.ii = kept
+            return copy
+        }
     }
 }

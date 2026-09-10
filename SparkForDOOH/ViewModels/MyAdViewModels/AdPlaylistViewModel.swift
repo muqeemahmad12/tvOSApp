@@ -30,8 +30,7 @@ final class AdPlaylistViewModel: ObservableObject {
             object: nil,
             queue: .main
         ) { [weak self] notification in
-            guard let groups = notification.userInfo?["groupedAds"] as? [AdSequenceGroup],
-                  !groups.isEmpty else { return }
+            let groups = (notification.userInfo?["groupedAds"] as? [AdSequenceGroup]) ?? []
             Task { @MainActor in
                 self?.applySyncedPlaylist(groups)
             }
@@ -46,18 +45,22 @@ final class AdPlaylistViewModel: ObservableObject {
 
     /// Update published playlist when player sync applies content (dismisses waiting screen).
     func applySyncedPlaylist(_ groups: [AdSequenceGroup]) {
-        guard !groups.isEmpty else { return }
-        if groups == groupedAds { return }
-        groupedAds = groups
-        ads = groups.flatMap { $0.ii }
+        let playable = groups.displayableGroups()
+        if playable == groupedAds { return }
+        groupedAds = playable
+        ads = playable.flatMap { $0.ii }
         isUsingCachedPlaylist = false
         errorMessage = nil
-        print("📂 Playlist VM updated from sync — waiting screen can dismiss")
+        if playable.isEmpty {
+            print("📂 Playlist VM cleared from sync — waiting for playable content")
+        } else {
+            print("📂 Playlist VM updated from sync — waiting screen can dismiss")
+        }
     }
     
     /// Load cached playlist immediately on init (for fast launch)
     func loadCachedPlaylistIfAvailable() {
-        if let cached = cacheService.loadCachedPlaylist(), !cached.isEmpty {
+        if let cached = cacheService.loadCachedPlaylist()?.displayableGroups(), !cached.isEmpty {
             groupedAds = cached
             ads = cached.flatMap { $0.ii }
             isUsingCachedPlaylist = true
@@ -96,20 +99,20 @@ final class AdPlaylistViewModel: ObservableObject {
                                                                             reqNum: reqNum)
                 }
 
-                let groups = response.groupedAds
+                let groups = response.groupedAds.displayableGroups()
                 if groups.isEmpty {
-                    // If API returns empty, keep using cache if available.
-                    if let cached = cacheService.loadCachedPlaylist(), !cached.isEmpty {
+                    // If API returns empty/unplayable, keep using cache if available.
+                    if let cached = cacheService.loadCachedPlaylist()?.displayableGroups(), !cached.isEmpty {
                         groupedAds = cached
                         ads = cached.flatMap { $0.ii }
                         isUsingCachedPlaylist = true
-                        print("📂 Empty API playlist - continuing with cached content")
+                        print("📂 Empty/unplayable API playlist - continuing with cached content")
                         SentryService.shared.track(SentryAnalyticsEvent.playlistEmpty, attributes: ["used_cache": "true"])
                     } else {
                         groupedAds = []
                         ads = []
                         isUsingCachedPlaylist = false
-                        print("⚠️ Empty API playlist and no cache available")
+                        print("⚠️ Empty/unplayable API playlist and no cache available")
                         SentryService.shared.track(SentryAnalyticsEvent.playlistEmpty, attributes: ["used_cache": "false"])
                     }
                     SentryService.shared.breadcrumb(category: "playlist", message: "empty_response", data: [:])
@@ -143,7 +146,7 @@ final class AdPlaylistViewModel: ObservableObject {
                 )
 
                 // Fall back to cached playlist if API fails
-                if groupedAds.isEmpty, let cached = cacheService.loadCachedPlaylist() {
+                if groupedAds.isEmpty, let cached = cacheService.loadCachedPlaylist()?.displayableGroups(), !cached.isEmpty {
                     groupedAds = cached
                     ads = cached.flatMap { $0.ii }
                     isUsingCachedPlaylist = true

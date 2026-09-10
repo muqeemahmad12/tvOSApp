@@ -33,7 +33,7 @@ struct AppConfig {
         apiKey: String? = nil,
         drsQuestApiKey: String? = nil,
         adsCacheMaxBytes: UInt64? = nil,
-        playlistRepeatInterval: TimeInterval = 10 * 60,
+        playlistRepeatInterval: TimeInterval = 15 * 60,
         activationTestTransitionDelay: TimeInterval = 10,
         activationAutoAdvanceForDebug: Bool = false
     ) {

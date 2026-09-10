@@ -18,6 +18,8 @@ private struct TVRemoteConfigEntry: Codable {
     let force_update: Bool
     /// Optional; if set, used for activation QR. Otherwise AppConfig.sparkPortalURL.
     let spark_portal_url: String?
+    /// Optional Keen `x-api-key` for heartbeat / activation. Falls back to AppConfig.apiKey.
+    let app_key: String?
 }
 
 private struct TVRemoteConfigPersisted: Codable {
@@ -26,6 +28,7 @@ private struct TVRemoteConfigPersisted: Codable {
     let force_update: Bool
     let config_key: String
     let spark_portal_url: String?
+    let app_key: String?
 }
 
 final class TVRemoteConfigStore {
@@ -36,6 +39,7 @@ final class TVRemoteConfigStore {
     private var _drsBaseString: String?
     private var _forceUpdate: Bool = false
     private var _sparkPortalURLFromRemote: String?
+    private var _appKeyFromRemote: String?
     private(set) var isLoaded: Bool = false
     private(set) var selectedKey: String = "plist"
 
@@ -45,6 +49,17 @@ final class TVRemoteConfigStore {
         lock.lock()
         defer { lock.unlock() }
         return _forceUpdate
+    }
+
+    /// Keen `x-api-key` from tv-config `app_key`, else AppConfig default.
+    var appKey: String {
+        lock.lock()
+        let remote = _appKeyFromRemote
+        lock.unlock()
+        if let remote, !remote.isEmpty {
+            return remote
+        }
+        return AppConfig.current.apiKey
     }
 
     /// Identifies backend tier for heartbeat payload & Sentry: hosts from **activation** and **drs** tv-config URLs.
@@ -92,6 +107,8 @@ final class TVRemoteConfigStore {
         } else {
             _sparkPortalURLFromRemote = nil
         }
+        let appKey = entry.app_key?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
+        _appKeyFromRemote = appKey.isEmpty ? nil : appKey
         isLoaded = true
         selectedKey = key
     }
@@ -191,7 +208,8 @@ enum TVRemoteConfigService {
             drs_base_url: entry.drs_base_url,
             force_update: entry.force_update,
             config_key: key,
-            spark_portal_url: entry.spark_portal_url
+            spark_portal_url: entry.spark_portal_url,
+            app_key: entry.app_key
         )
         if let data = try? JSONEncoder().encode(p) {
             UserDefaults.standard.set(data, forKey: userDefaultsKey)
@@ -227,7 +245,9 @@ enum TVRemoteConfigService {
             guard !act.isEmpty, !drs.isEmpty else { return false }
             persist(entry: entry, key: key)
             TVRemoteConfigStore.shared.apply(entry: entry, key: key)
-            print("📡 TV remote config OK [\(key)] environment=\(TVRemoteConfigStore.shared.environmentLabel)")
+            let keyPreview = TVRemoteConfigStore.shared.appKey
+            let suffix = keyPreview.count > 8 ? String(keyPreview.suffix(8)) : keyPreview
+            print("📡 TV remote config OK [\(key)] environment=\(TVRemoteConfigStore.shared.environmentLabel) app_key=…\(suffix)")
             return true
         } catch {
             return false
