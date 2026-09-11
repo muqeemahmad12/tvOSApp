@@ -30,9 +30,9 @@ final class AppRootViewModel: ObservableObject {
     private var heartbeatInactiveObserver: NSObjectProtocol?
     
     init() {
-        // Check if device was previously activated
-        if Self.isDeviceActivated() {
-            print("✅ Device previously activated - skipping activation screen")
+        // Past first-time setup only when poll secureKey exists.
+        if Self.hasSavedSecureKey() {
+            print("✅ secureKey present - skipping activation screen")
             self.phase = .playing
         } else {
             self.phase = .activating
@@ -57,29 +57,33 @@ final class AppRootViewModel: ObservableObject {
     
     // MARK: - Persistence Methods
     
-    /// Check if device has been activated before
+    /// Device is past first-time setup when poll has given us a non-empty `secureKey`.
+    static func hasSavedSecureKey() -> Bool {
+        let key = getSavedSecureKey()?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
+        return !key.isEmpty
+    }
+
+    /// Check if device has been activated before (same as having a poll `secureKey`).
     static func isDeviceActivated() -> Bool {
-        return UserDefaults.standard.bool(forKey: isActivatedKey)
+        hasSavedSecureKey()
     }
     
-    /// Save activation state when device is activated
+    /// Save activation state when device is activated.
+    /// Ticker/logo: non-empty updates cache; empty string clears that item; nil leaves it unchanged.
     static func saveActivation(secureKey: String?, deviceCode: String?, tickerMessage: String? = nil, logoUrl: String? = nil) {
-        UserDefaults.standard.set(true, forKey: isActivatedKey)
         updateSecureKey(secureKey)
+        // Only mark activated once we actually have a secureKey from poll.
+        UserDefaults.standard.set(hasSavedSecureKey(), forKey: isActivatedKey)
         if let deviceCode = deviceCode {
             UserDefaults.standard.set(deviceCode, forKey: deviceCodeKey)
         }
-        if let tickerMessage = tickerMessage, !tickerMessage.isEmpty {
-            UserDefaults.standard.set(tickerMessage, forKey: tickerMessageKey)
-        }
-        if let logoUrl = logoUrl, !logoUrl.isEmpty {
-            UserDefaults.standard.set(logoUrl, forKey: logoUrlKey)
-        }
-        print("💾 Activation saved to UserDefaults")
+        updateTickerMessage(tickerMessage)
+        updateLogoUrl(logoUrl)
+        print("💾 Activation saved to UserDefaults (hasSecureKey=\(hasSavedSecureKey()))")
         SentryService.shared.setUser(deviceCode: deviceCode, screenId: AppConfig.current.screenId)
         SentryService.shared.track(
             SentryAnalyticsEvent.activationSaved,
-            attributes: ["has_ticker": (tickerMessage != nil && !(tickerMessage?.isEmpty ?? true)) ? "true" : "false"]
+            attributes: ["has_ticker": (getSavedTickerMessage()?.isEmpty == false) ? "true" : "false"]
         )
         SentryService.shared.breadcrumb(category: "activation", message: "credentials_saved", data: [:])
     }
@@ -90,6 +94,7 @@ final class AppRootViewModel: ObservableObject {
         guard !trimmed.isEmpty else { return }
         let previous = UserDefaults.standard.string(forKey: secureKeyKey)
         UserDefaults.standard.set(trimmed, forKey: secureKeyKey)
+        UserDefaults.standard.set(true, forKey: isActivatedKey)
         if previous != trimmed {
             print("🔑 secureKey updated from poll (was \(previous ?? "nil"), now \(trimmed))")
         } else {
@@ -97,7 +102,7 @@ final class AppRootViewModel: ObservableObject {
         }
     }
     
-    /// Get saved secure key
+    /// Get saved secure key (from activation poll) — used as heartbeat/quest `x-api-key`.
     static func getSavedSecureKey() -> String? {
         return UserDefaults.standard.string(forKey: secureKeyKey)
     }
@@ -117,22 +122,44 @@ final class AppRootViewModel: ObservableObject {
         return UserDefaults.standard.string(forKey: logoUrlKey)
     }
     
-    /// Update ticker message (can be updated during heartbeat)
+    /// Update ticker from API:
+    /// - non-empty → cache it
+    /// - empty string → remove from cache (facility no longer wants a ticker)
+    /// - nil / omitted → leave cache unchanged
     static func updateTickerMessage(_ message: String?) {
-        if let message = message, !message.isEmpty {
-            UserDefaults.standard.set(message, forKey: tickerMessageKey)
-        } else {
-            UserDefaults.standard.removeObject(forKey: tickerMessageKey)
+        guard let message else { return }
+        let trimmed = message.trimmingCharacters(in: .whitespacesAndNewlines)
+        if trimmed.isEmpty {
+            if UserDefaults.standard.object(forKey: tickerMessageKey) != nil {
+                UserDefaults.standard.removeObject(forKey: tickerMessageKey)
+                print("🗑️ Ticker cleared — empty value from API")
+            }
+            return
         }
+        let previous = UserDefaults.standard.string(forKey: tickerMessageKey)
+        guard previous != trimmed else { return }
+        UserDefaults.standard.set(trimmed, forKey: tickerMessageKey)
+        print("📢 Ticker updated")
     }
     
-    /// Update logo URL (can be updated during heartbeat)
+    /// Update logo from API:
+    /// - non-empty → cache it
+    /// - empty string → remove from cache (facility no longer wants a logo)
+    /// - nil / omitted → leave cache unchanged
     static func updateLogoUrl(_ url: String?) {
-        if let url = url, !url.isEmpty {
-            UserDefaults.standard.set(url, forKey: logoUrlKey)
-        } else {
-            UserDefaults.standard.removeObject(forKey: logoUrlKey)
+        guard let url else { return }
+        let trimmed = url.trimmingCharacters(in: .whitespacesAndNewlines)
+        if trimmed.isEmpty {
+            if UserDefaults.standard.object(forKey: logoUrlKey) != nil {
+                UserDefaults.standard.removeObject(forKey: logoUrlKey)
+                print("🗑️ Logo cleared — empty value from API")
+            }
+            return
         }
+        let previous = UserDefaults.standard.string(forKey: logoUrlKey)
+        guard previous != trimmed else { return }
+        UserDefaults.standard.set(trimmed, forKey: logoUrlKey)
+        print("🖼️ Logo URL updated")
     }
     
     /// Called when heartbeat response has screenStatus INACTIVE. If we're on player, clear activation and switch to activation + show failed screen; if already on registration, do nothing.
@@ -147,14 +174,13 @@ final class AppRootViewModel: ObservableObject {
         phase = .activating
     }
     
-    /// Clear activation (for testing or re-activation)
+    /// Clear activation credentials (for re-activation). Ticker message and logo are never cleared.
     static func clearActivation() {
         UserDefaults.standard.removeObject(forKey: isActivatedKey)
         UserDefaults.standard.removeObject(forKey: secureKeyKey)
         UserDefaults.standard.removeObject(forKey: deviceCodeKey)
-        UserDefaults.standard.removeObject(forKey: tickerMessageKey)
-        UserDefaults.standard.removeObject(forKey: logoUrlKey)
-        print("🗑️ Activation cleared from UserDefaults")
+        // Intentionally keep tickerMessageKey + logoUrlKey until a later request updates them.
+        print("🗑️ Activation credentials cleared (ticker/logo cache kept)")
         SentryService.shared.clearUser()
         SentryService.shared.track(SentryAnalyticsEvent.activationCleared)
         SentryService.shared.breadcrumb(category: "activation", message: "credentials_cleared", data: [:])

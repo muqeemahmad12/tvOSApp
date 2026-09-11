@@ -32,16 +32,18 @@ struct AdPlayerView: View {
 
                     let hasVideo = !videos.isEmpty
                     let hasImages = !images.isEmpty
+                    // Video + companions while L-shape is active; then video scales fullscreen.
+                    let showVideoCompanions = hasVideo && hasImages && viewModel.showsLShapeCompanions
                     // 2 images, no video → fill left column full-height; 3+ use video+bottom+right slots with images.
                     let imageOnlyPair = !hasVideo && images.count == 2
                     let imageOnlyMulti = !hasVideo && images.count >= 3
 
                     let screenWidth = geo.size.width
                     let screenHeight = geo.size.height
-                    let videoWidth = hasImages ? screenWidth * 0.7 : screenWidth
+                    let videoWidth = (showVideoCompanions || imageOnlyPair || imageOnlyMulti) ? screenWidth * 0.7 : screenWidth
                     let videoHeight: CGFloat = {
                         if imageOnlyPair { return screenHeight }
-                        if hasImages { return videoWidth * 9 / 16 }
+                        if showVideoCompanions || imageOnlyMulti { return videoWidth * 9 / 16 }
                         return screenHeight
                     }()
                     let bottomImageHeight = screenHeight - videoHeight
@@ -53,13 +55,13 @@ struct AdPlayerView: View {
                     // right  = last image when 2+ images
                     let mainImage: AdItemModel? = (imageOnlyPair || imageOnlyMulti) ? images[0] : nil
                     let bottomImage: AdItemModel? = {
-                        if hasVideo { return images.first }
+                        if showVideoCompanions { return images.first }
                         if imageOnlyMulti { return images[1] }
                         return nil
                     }()
                     let rightImage: AdItemModel? = {
-                        if images.count >= 2 { return images.last }
-                        if hasVideo { return images.last }
+                        if showVideoCompanions, images.count >= 1 { return images.last }
+                        if !hasVideo, images.count >= 2 { return images.last }
                         return nil
                     }()
 
@@ -73,15 +75,18 @@ struct AdPlayerView: View {
                         }
                     } else {
                         ZStack(alignment: .topLeading) {
-                            // MARK: - Main (video, or lead image when no video)
+                            // MARK: - Main (video fullscreen or L-shape, or lead image when no video)
                             if hasVideo {
-                                VideoPlayer(player: viewModel.activePlayer)
-                                    .aspectRatio(16/9, contentMode: .fit)
+                                // Non-interactive layer so Menu reaches the exit confirmation
+                                // (SwiftUI VideoPlayer steals focus and swallows Menu).
+                                NonInteractiveVideoPlayer(player: viewModel.activePlayer)
+                                    .aspectRatio(16/9, contentMode: showVideoCompanions ? .fit : .fill)
                                     .frame(width: videoWidth, height: videoHeight)
                                     .clipped()
+                                    .allowsHitTesting(false)
                                     .position(x: videoWidth / 2,
-                                              y: hasImages ? (videoHeight / 2) : screenHeight / 2)
-                                    .animation(.easeInOut(duration: 1.0), value: hasImages)
+                                              y: showVideoCompanions ? (videoHeight / 2) : screenHeight / 2)
+                                    .animation(.easeInOut(duration: 1.0), value: showVideoCompanions)
                             } else if let mainImage, let img = resolveImage(for: mainImage) {
                                 Image(uiImage: img)
                                     .resizable()

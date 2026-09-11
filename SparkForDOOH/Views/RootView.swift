@@ -79,6 +79,7 @@ struct RootView: View {
             case .playing:
                 adListVM.fetchAds(screenId: AppConfig.current.screenId, reqNum: 1)
             case .activating:
+                HeartbeatAPI.shared.resetInitialHeartbeatGate()
                 HeartbeatAPI.shared.startInitialHeartbeat()
             }
         }

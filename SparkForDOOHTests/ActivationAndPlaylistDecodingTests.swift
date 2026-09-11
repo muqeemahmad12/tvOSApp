@@ -74,26 +74,40 @@ final class ActivationAndPlaylistDecodingTests: XCTestCase {
         XCTAssertTrue(groups.first?.is_active == true)
     }
 
-    func testItemSeqInfoAllowsNullItemId() throws {
+    func testItemSeqInfoAllowsNullItemIdWithValidURL() throws {
         let json = """
         {
           "screenid": "174",
           "status": "OK",
           "item1": [
             {
-              "facilityid": "F1",
+              "facilityid": null,
               "sequence": 1,
               "is_active": true,
               "ii": [
                 {
-                  "itemid": "10",
+                  "assetcat": "o",
+                  "itemsize": "1920 x 1080",
+                  "schedulestarttime": null,
+                  "subcampaignid": null,
+                  "itemid": null,
+                  "trackerlist": null,
+                  "scheduleendtime": null,
+                  "itemspeciality": null,
                   "assettype": "Image",
-                  "itemurl": "https://example.com/a.png"
+                  "itemurl": "https://simage.doceree.com/spark-dooh/assets/1920x1080.png",
+                  "is_flex": false
+                },
+                {
+                  "itemid": "47",
+                  "assettype": "Image",
+                  "itemurl": "https://example.com/a.png",
+                  "duration": 15
                 },
                 {
                   "itemid": null,
                   "assettype": "Image",
-                  "itemurl": "https://example.com/bad.png"
+                  "itemurl": null
                 }
               ]
             }
@@ -103,7 +117,69 @@ final class ActivationAndPlaylistDecodingTests: XCTestCase {
         let decoded = try JSONDecoder().decode(ItemSeqInfoResponse.self, from: Data(json.utf8))
         let playable = decoded.item1.displayableGroups()
         XCTAssertEqual(playable.count, 1)
-        XCTAssertEqual(playable.first?.ii.count, 1)
-        XCTAssertEqual(playable.first?.ii.first?.itemid, "10")
+        // Keep null metadata when URL + assettype present; drop only missing URL.
+        XCTAssertEqual(playable.first?.ii.count, 2)
+        XCTAssertEqual(playable.first?.ii.first?.itemid, "")
+        XCTAssertTrue(playable.first?.ii.first?.hasMinimumPlayableFields ?? false)
+    }
+
+    func testUnplayableThirdKeepsOtherPlayableItems() throws {
+        let json = """
+        {
+          "item1": [
+            {
+              "facilityid": "F1",
+              "sequence": 1,
+              "is_active": true,
+              "ii": [
+                {
+                  "itemid": "v1",
+                  "assettype": "video",
+                  "itemurl": "https://example.com/main.mp4"
+                },
+                {
+                  "itemid": "47",
+                  "assettype": "Image",
+                  "itemurl": "https://example.com/bottom.png"
+                },
+                {
+                  "itemid": null,
+                  "assettype": "Image",
+                  "itemurl": null
+                }
+              ]
+            }
+          ]
+        }
+        """
+        let decoded = try JSONDecoder().decode(ItemSeqInfoResponse.self, from: Data(json.utf8))
+        let playable = decoded.item1.displayableGroups()
+        XCTAssertEqual(playable.count, 1)
+        XCTAssertEqual(playable.first?.ii.count, 2)
+        XCTAssertEqual(playable.first?.ii.map { $0.assettype.lowercased() }, ["video", "image"])
+    }
+
+    func testZipHtml5PackageIsNotPlayable() throws {
+        let json = """
+        {
+          "item1": [
+            {
+              "facilityid": "F1",
+              "sequence": 1,
+              "is_active": true,
+              "ii": [
+                {
+                  "itemid": "z1",
+                  "assettype": "video",
+                  "itemurl": "https://cdn.example.com/content_1779688607886_html5_zip_file_prime_brand.zip"
+                }
+              ]
+            }
+          ]
+        }
+        """
+        let decoded = try JSONDecoder().decode(ItemSeqInfoResponse.self, from: Data(json.utf8))
+        XCTAssertFalse(decoded.item1.first?.ii.first?.hasMinimumPlayableFields ?? true)
+        XCTAssertTrue(decoded.item1.displayableGroups().isEmpty)
     }
 }

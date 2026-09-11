@@ -101,21 +101,23 @@ final class AdPlaylistViewModel: ObservableObject {
 
                 let groups = response.groupedAds.displayableGroups()
                 if groups.isEmpty {
-                    // If API returns empty/unplayable, keep using cache if available.
-                    if let cached = cacheService.loadCachedPlaylist()?.displayableGroups(), !cached.isEmpty {
+                    // No playable items yet — keep current / cached playlist unchanged (no wipe).
+                    if groupedAds.isEmpty,
+                       let cached = cacheService.loadCachedPlaylist()?.displayableGroups(),
+                       !cached.isEmpty {
                         groupedAds = cached
                         ads = cached.flatMap { $0.ii }
                         isUsingCachedPlaylist = true
-                        print("📂 Empty/unplayable API playlist - continuing with cached content")
-                        SentryService.shared.track(SentryAnalyticsEvent.playlistEmpty, attributes: ["used_cache": "true"])
+                        print("📂 Quest has no playable image/video — continuing with cached playlist")
+                        SentryService.shared.track(SentryAnalyticsEvent.playlistEmpty, attributes: ["used_cache": "true", "reason": "no_playable_media"])
+                    } else if !groupedAds.isEmpty {
+                        print("ℹ️ Quest has no playable image/video — keeping current playlist")
+                        SentryService.shared.track(SentryAnalyticsEvent.playlistEmpty, attributes: ["used_cache": "current", "reason": "no_playable_media"])
                     } else {
-                        groupedAds = []
-                        ads = []
-                        isUsingCachedPlaylist = false
-                        print("⚠️ Empty/unplayable API playlist and no cache available")
-                        SentryService.shared.track(SentryAnalyticsEvent.playlistEmpty, attributes: ["used_cache": "false"])
+                        print("⚠️ Quest has no playable image/video and no cache — waiting for content")
+                        SentryService.shared.track(SentryAnalyticsEvent.playlistEmpty, attributes: ["used_cache": "false", "reason": "no_playable_media"])
                     }
-                    SentryService.shared.breadcrumb(category: "playlist", message: "empty_response", data: [:])
+                    SentryService.shared.breadcrumb(category: "playlist", message: "empty_or_unplayable_response", data: [:])
                 } else {
                     groupedAds = groups
                     ads = groups.flatMap { $0.ii }
@@ -130,7 +132,7 @@ final class AdPlaylistViewModel: ObservableObject {
                         message: "fetch_success",
                         data: ["groups": "\(groups.count)", "items": "\(itemCount)"]
                     )
-                    // Cache the playlist for offline use
+                    // Only overwrite saved playlist when ≥1 playable item arrives
                     cacheService.savePlaylist(groups)
                 }
             } catch {

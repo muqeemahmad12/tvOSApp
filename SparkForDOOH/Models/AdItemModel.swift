@@ -25,10 +25,10 @@ struct ItemSeqInfoResponse: Codable {
     
     init(from decoder: Decoder) throws {
         let container = try decoder.container(keyedBy: CodingKeys.self)
-        screenid = try container.decodeIfPresent(String.self, forKey: .screenid)
-        status = try container.decodeIfPresent(String.self, forKey: .status)
-        // Default to empty array if item1 key is missing to avoid keyNotFound crashes
-        item1 = try container.decodeIfPresent([AdSequenceGroup].self, forKey: .item1) ?? []
+        screenid = JSONNullTolerant.optionalString(container, .screenid)
+        status = JSONNullTolerant.optionalString(container, .status)
+        // Decode groups lossily so one bad sequence does not fail the whole quest.
+        item1 = JSONNullTolerant.decodeArray(from: container, forKey: .item1)
     }
 }
 
@@ -39,6 +39,33 @@ struct AdSequenceGroup: Codable, Identifiable, Equatable {
     let sequence: Int
     var ii: [AdItemModel]
     let is_active: Bool
+
+    enum CodingKeys: String, CodingKey {
+        case facilityid, sequence, ii, is_active
+    }
+
+    init(facilityid: String, sequence: Int, ii: [AdItemModel], is_active: Bool) {
+        self.facilityid = facilityid
+        self.sequence = sequence
+        self.ii = ii
+        self.is_active = is_active
+    }
+
+    init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        facilityid = JSONNullTolerant.optionalString(container, .facilityid) ?? ""
+        if let i = JSONNullTolerant.optionalInt(container, .sequence) {
+            sequence = i
+        } else {
+            throw DecodingError.dataCorruptedError(
+                forKey: .sequence,
+                in: container,
+                debugDescription: "sequence is required to order playback"
+            )
+        }
+        ii = JSONNullTolerant.decodeArray(from: container, forKey: .ii)
+        is_active = JSONNullTolerant.optionalBool(container, .is_active) ?? true
+    }
     
     static func == (lhs: AdSequenceGroup, rhs: AdSequenceGroup) -> Bool {
         lhs.sequence == rhs.sequence
@@ -47,7 +74,8 @@ struct AdSequenceGroup: Codable, Identifiable, Equatable {
 
 // MARK: - Ad Item
 struct AdItemModel: Codable, Identifiable, Equatable {
-    var id: String { itemid }
+    /// Prefer itemid; fall back to URL so null-itemid flex/dummy creatives stay unique in UI.
+    var id: String { itemid.isEmpty ? itemurl : itemid }
 
     let itemid: String
     let assettype: String
@@ -107,29 +135,109 @@ struct AdItemModel: Codable, Identifiable, Equatable {
 
     init(from decoder: Decoder) throws {
         let container = try decoder.container(keyedBy: CodingKeys.self)
-        // API sometimes sends null itemid/itemurl — treat as empty and drop later.
-        itemid = try container.decodeIfPresent(String.self, forKey: .itemid) ?? ""
-        assettype = try container.decode(String.self, forKey: .assettype)
-        assetcat = try container.decodeIfPresent(String.self, forKey: .assetcat)
-        itemurl = try container.decodeIfPresent(String.self, forKey: .itemurl) ?? ""
-        itemsize = try container.decodeIfPresent(String.self, forKey: .itemsize)
-        if let i = try? container.decode(Int.self, forKey: .duration) {
-            duration = i
-        } else if let s = try? container.decode(String.self, forKey: .duration), let i = Int(s) {
-            duration = i
-        } else {
-            duration = nil
-        }
-        isFlex = try container.decodeIfPresent(Bool.self, forKey: .isFlex)
-        trackerlist = try container.decodeIfPresent([String].self, forKey: .trackerlist)
-        itemspeciality = try container.decodeIfPresent(String.self, forKey: .itemspeciality)
-        subcampaignid = try container.decodeIfPresent(String.self, forKey: .subcampaignid)
-        schedulestarttime = try container.decodeIfPresent(String.self, forKey: .schedulestarttime)
-        scheduleendtime = try container.decodeIfPresent(String.self, forKey: .scheduleendtime)
+        // Everything may be null except we need a URL + asset type to play (enforced in displayableGroups).
+        itemid = JSONNullTolerant.optionalString(container, .itemid) ?? ""
+        assettype = JSONNullTolerant.optionalString(container, .assettype) ?? ""
+        assetcat = JSONNullTolerant.optionalString(container, .assetcat)
+        itemurl = JSONNullTolerant.optionalString(container, .itemurl) ?? ""
+        itemsize = JSONNullTolerant.optionalString(container, .itemsize)
+        duration = JSONNullTolerant.optionalInt(container, .duration)
+        isFlex = JSONNullTolerant.optionalBool(container, .isFlex)
+        trackerlist = JSONNullTolerant.decodeStringArray(from: container, forKey: .trackerlist)
+        itemspeciality = JSONNullTolerant.optionalString(container, .itemspeciality)
+        subcampaignid = JSONNullTolerant.optionalString(container, .subcampaignid)
+        schedulestarttime = JSONNullTolerant.optionalString(container, .schedulestarttime)
+        scheduleendtime = JSONNullTolerant.optionalString(container, .scheduleendtime)
     }
 
     static func == (lhs: AdItemModel, rhs: AdItemModel) -> Bool {
         lhs.itemid == rhs.itemid && lhs.itemurl == rhs.itemurl
+    }
+}
+
+// MARK: - Null-tolerant JSON helpers
+private enum JSONNullTolerant {
+    static func optionalString<K: CodingKey>(_ c: KeyedDecodingContainer<K>, _ key: K) -> String? {
+        if c.contains(key), (try? c.decodeNil(forKey: key)) == true { return nil }
+        if let s = try? c.decode(String.self, forKey: key) { return s }
+        if let i = try? c.decode(Int.self, forKey: key) { return String(i) }
+        if let d = try? c.decode(Double.self, forKey: key) { return String(d) }
+        return nil
+    }
+
+    static func optionalInt<K: CodingKey>(_ c: KeyedDecodingContainer<K>, _ key: K) -> Int? {
+        if c.contains(key), (try? c.decodeNil(forKey: key)) == true { return nil }
+        if let i = try? c.decode(Int.self, forKey: key) { return i }
+        if let s = try? c.decode(String.self, forKey: key) {
+            let trimmed = s.trimmingCharacters(in: .whitespacesAndNewlines)
+            return Int(trimmed)
+        }
+        if let d = try? c.decode(Double.self, forKey: key) { return Int(d) }
+        return nil
+    }
+
+    static func optionalBool<K: CodingKey>(_ c: KeyedDecodingContainer<K>, _ key: K) -> Bool? {
+        if c.contains(key), (try? c.decodeNil(forKey: key)) == true { return nil }
+        if let b = try? c.decode(Bool.self, forKey: key) { return b }
+        if let i = try? c.decode(Int.self, forKey: key) { return i != 0 }
+        if let s = try? c.decode(String.self, forKey: key) {
+            switch s.trimmingCharacters(in: .whitespacesAndNewlines).lowercased() {
+            case "1", "true", "yes", "y": return true
+            case "0", "false", "no", "n": return false
+            default: return nil
+            }
+        }
+        return nil
+    }
+
+    static func decodeStringArray<K: CodingKey>(
+        from container: KeyedDecodingContainer<K>,
+        forKey key: K
+    ) -> [String]? {
+        if !container.contains(key) || (try? container.decodeNil(forKey: key)) == true {
+            return nil
+        }
+        if let strings = try? container.decode([String].self, forKey: key) {
+            return strings
+        }
+        // Mixed / partial arrays — keep only string elements.
+        let parsed: [String] = decodeArray(from: container, forKey: key)
+        return parsed.isEmpty ? nil : parsed
+    }
+
+    static func decodeArray<T: Decodable, K: CodingKey>(
+        from container: KeyedDecodingContainer<K>,
+        forKey key: K
+    ) -> [T] {
+        guard container.contains(key),
+              (try? container.decodeNil(forKey: key)) != true,
+              var unkeyed = try? container.nestedUnkeyedContainer(forKey: key) else {
+            return []
+        }
+        var items: [T] = []
+        while !unkeyed.isAtEnd {
+            if let value = try? unkeyed.decode(T.self) {
+                items.append(value)
+            } else {
+                // Advance past a bad element.
+                _ = try? unkeyed.decode(LossyJSONValue.self)
+            }
+        }
+        return items
+    }
+}
+
+/// Consumes any JSON value so unkeyed decode can skip corrupt elements.
+private struct LossyJSONValue: Decodable {
+    init(from decoder: Decoder) throws {
+        let c = try decoder.singleValueContainer()
+        if c.decodeNil() { return }
+        if (try? c.decode(Bool.self)) != nil { return }
+        if (try? c.decode(Int.self)) != nil { return }
+        if (try? c.decode(Double.self)) != nil { return }
+        if (try? c.decode(String.self)) != nil { return }
+        if (try? c.decode([LossyJSONValue].self)) != nil { return }
+        if (try? c.decode([String: LossyJSONValue].self)) != nil { return }
     }
 }
 
@@ -145,15 +253,52 @@ extension ItemSeqInfoResponse {
 
 // size helper
 extension AdItemModel {
+    private static let playableImageExtensions: Set<String> = [
+        "jpg", "jpeg", "png", "gif", "webp", "bmp", "heic"
+    ]
+    private static let playableVideoExtensions: Set<String> = [
+        "mp4", "mov", "m4v", "mpg", "mpeg", "m3u8"
+    ]
+
     /// Only `image` and `video` are shown on the player (e.g. `Banner` is not displayable).
     var isDisplayableAsset: Bool {
         let type = assettype.lowercased()
         return type == "image" || type == "video"
     }
 
+    /// File extension from `itemurl` (lowercased).
+    var mediaPathExtension: String {
+        URL(string: itemurl.trimmingCharacters(in: .whitespacesAndNewlines))?
+            .pathExtension
+            .lowercased() ?? ""
+    }
+
+    /// True when URL extension matches a real image/video file (rejects zip/html/etc.).
+    var hasPlayableMediaExtension: Bool {
+        let ext = mediaPathExtension
+        guard !ext.isEmpty else { return false }
+        switch assettype.lowercased() {
+        case "image":
+            return Self.playableImageExtensions.contains(ext)
+        case "video":
+            return Self.playableVideoExtensions.contains(ext)
+        default:
+            return false
+        }
+    }
+
+    /// Minimum fields needed to attempt playback: image|video + URL + playable media extension.
+    var hasMinimumPlayableFields: Bool {
+        isDisplayableAsset
+            && !itemurl.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+            && hasPlayableMediaExtension
+    }
+
     var isTooLarge: Bool {
         guard let size = itemsize else { return false }
-        let components = size.lowercased().split(separator: "x")
+        let components = size.lowercased()
+            .replacingOccurrences(of: " ", with: "")
+            .split(separator: "x")
         guard components.count == 2,
               let width = Int(components[0]),
               let height = Int(components[1]) else {
@@ -164,12 +309,12 @@ extension AdItemModel {
 }
 
 extension Array where Element == AdSequenceGroup {
-    /// Groups containing at least one image/video creative (Banner-only groups dropped).
+    /// Keep groups that still have at least one playable creative.
+    /// Required: `assettype` image|video + non-empty `itemurl`. Everything else may be null.
+    /// Unplayable slots are dropped individually; remaining playable items still play.
     func displayableGroups() -> [AdSequenceGroup] {
         compactMap { group in
-            let kept = group.ii.filter {
-                $0.isDisplayableAsset && !$0.itemid.isEmpty && !$0.itemurl.isEmpty
-            }
+            let kept = group.ii.filter { $0.hasMinimumPlayableFields }
             guard !kept.isEmpty else { return nil }
             var copy = group
             copy.ii = kept

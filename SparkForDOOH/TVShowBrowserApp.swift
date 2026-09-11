@@ -53,7 +53,6 @@ struct SparkForDOOHApp: App {
                     }
                     #endif
                 }
-                HeartbeatAPI.shared.startInitialHeartbeat()
             }
         }
         
@@ -71,15 +70,18 @@ struct SparkForDOOHApp: App {
     }
 }
 
-/// Simple landing gate that waits for initial heartbeat success before showing the app.
+/// Landing gate:
+/// - No poll `secureKey` → first-time activation (no heartbeat)
+/// - Has `secureKey` → one heartbeat on launch (ACTIVE required), then 20‑min timer
 private struct LandingGateView: View {
     @State private var tvConfigReady = false
     @State private var isReady = false
-    @State private var didFail = false
+    @State private var showActivation = false
     @State private var status: String = "Checking device status…"
-    @State private var hasPersistedActivation: Bool = AppRootViewModel.isDeviceActivated()
     @ObservedObject private var networkMonitor = NetworkMonitor.shared
     @Environment(\.scenePhase) private var scenePhase
+
+    private var hasSecureKey: Bool { AppRootViewModel.hasSavedSecureKey() }
     
     var body: some View {
         ZStack {
@@ -95,14 +97,13 @@ private struct LandingGateView: View {
                     .frame(maxWidth: .infinity, maxHeight: .infinity)
                     .background(Color.black)
                     .ignoresSafeArea()
-                } else if isReady || hasPersistedActivation {
+                } else if isReady {
                     RootView()
-                } else if didFail {
+                } else if showActivation {
                     ActivationView {
-                        // Activation succeeded; proceed to app.
-                        didFail = false
+                        showActivation = false
                         isReady = true
-                        hasPersistedActivation = true
+                        HeartbeatAPI.shared.startHeartbeat()
                     }
                 } else {
                     VStack(spacing: 20) {
@@ -111,59 +112,48 @@ private struct LandingGateView: View {
                         Text(status)
                             .font(.title3)
                             .foregroundColor(.white.opacity(0.8))
-                        Text("Will retry every 5 minutes if network/API fails.")
+                        Text("Waiting for ACTIVE screen status…")
                             .font(.footnote)
                             .foregroundColor(.white.opacity(0.6))
                     }
                     .frame(maxWidth: .infinity, maxHeight: .infinity)
                     .background(Color.black)
                     .ignoresSafeArea()
-                    .onAppear {
-                        status = "Sending heartbeat…"
-                        NotificationCenter.default.addObserver(
-                            forName: .initialHeartbeatSucceeded,
-                            object: nil,
-                            queue: .main
-                        ) { _ in
-                            isReady = true
-                            hasPersistedActivation = AppRootViewModel.isDeviceActivated()
-                        }
-                        NotificationCenter.default.addObserver(
-                            forName: .initialHeartbeatFailed,
-                            object: nil,
-                            queue: .main
-                        ) { _ in
-                            status = "Heartbeat failed. Redirecting to registration…"
-                            didFail = true
-                        }
-                    }
-                    .onChange(of: networkMonitor.isConnected) { connected in
-                        if connected && !isReady && !hasPersistedActivation {
-                            // If we were showing the offline screen, move back to the gate and retry.
-                            didFail = false
-                            status = "Connection restored. Retrying heartbeat…"
-                            HeartbeatAPI.shared.startInitialHeartbeat()
-                        }
-                    }
-                    .onAppear {
-                        // If already activated from a prior run, skip heartbeat entirely.
-                        if hasPersistedActivation {
-                            isReady = true
-                        }
-                    }
                 }
             }
             
-            // Only show offline overlay while gating/activation and not already activated.
-            if tvConfigReady,
-               !networkMonitor.isConnected && !isReady && !hasPersistedActivation {
+            if tvConfigReady, !networkMonitor.isConnected, !isReady, hasSecureKey, !showActivation {
                 ConnectionLostView()
                     .transition(.opacity)
+            }
+        }
+        .onReceive(NotificationCenter.default.publisher(for: .initialHeartbeatSucceeded)) { _ in
+            isReady = true
+            showActivation = false
+            status = "Screen ACTIVE"
+        }
+        .onReceive(NotificationCenter.default.publisher(for: .initialHeartbeatFailed)) { _ in
+            status = "Screen not ACTIVE. Redirecting to registration…"
+            isReady = false
+            showActivation = true
+        }
+        .onChange(of: networkMonitor.isConnected) { connected in
+            if connected && !isReady && hasSecureKey && !showActivation {
+                status = "Connection restored. Retrying heartbeat…"
+                HeartbeatAPI.shared.resetInitialHeartbeatGate()
+                HeartbeatAPI.shared.startInitialHeartbeat()
             }
         }
         .task {
             await TVRemoteConfigService.waitUntilLaunchConfigNetworkFinished()
             tvConfigReady = true
+            if !AppRootViewModel.hasSavedSecureKey() {
+                showActivation = true
+                status = "Registration required"
+            } else {
+                status = "Sending heartbeat…"
+                HeartbeatAPI.shared.startInitialHeartbeat()
+            }
         }
         .onChange(of: scenePhase) { phase in
             if phase == .active && !isReady {
