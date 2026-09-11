@@ -54,6 +54,8 @@ struct AdItemModel: Codable, Identifiable, Equatable {
     let assetcat: String?
     let itemurl: String
     let itemsize: String?
+    /// Display seconds for image creatives (from quest JSON). Nil → player default.
+    let duration: Int?
     let isFlex: Bool?
     let trackerlist: [String]?
     let itemspeciality: String?
@@ -66,7 +68,7 @@ struct AdItemModel: Codable, Identifiable, Equatable {
     var facilityid: String?
 
     enum CodingKeys: String, CodingKey {
-        case itemid, assettype, assetcat, itemurl, itemsize
+        case itemid, assettype, assetcat, itemurl, itemsize, duration
         case isFlex = "is_flex"
         case trackerlist, itemspeciality, subcampaignid, schedulestarttime, scheduleendtime
     }
@@ -77,6 +79,7 @@ struct AdItemModel: Codable, Identifiable, Equatable {
         assetcat: String? = nil,
         itemurl: String,
         itemsize: String? = nil,
+        duration: Int? = nil,
         isFlex: Bool? = nil,
         trackerlist: [String]? = nil,
         itemspeciality: String? = nil,
@@ -91,6 +94,7 @@ struct AdItemModel: Codable, Identifiable, Equatable {
         self.assetcat = assetcat
         self.itemurl = itemurl
         self.itemsize = itemsize
+        self.duration = duration
         self.isFlex = isFlex
         self.trackerlist = trackerlist
         self.itemspeciality = itemspeciality
@@ -109,6 +113,13 @@ struct AdItemModel: Codable, Identifiable, Equatable {
         assetcat = try container.decodeIfPresent(String.self, forKey: .assetcat)
         itemurl = try container.decodeIfPresent(String.self, forKey: .itemurl) ?? ""
         itemsize = try container.decodeIfPresent(String.self, forKey: .itemsize)
+        if let i = try? container.decode(Int.self, forKey: .duration) {
+            duration = i
+        } else if let s = try? container.decode(String.self, forKey: .duration), let i = Int(s) {
+            duration = i
+        } else {
+            duration = nil
+        }
         isFlex = try container.decodeIfPresent(Bool.self, forKey: .isFlex)
         trackerlist = try container.decodeIfPresent([String].self, forKey: .trackerlist)
         itemspeciality = try container.decodeIfPresent(String.self, forKey: .itemspeciality)

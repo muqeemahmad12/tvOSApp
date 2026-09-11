@@ -412,27 +412,31 @@ private extension AdPlayerViewModel {
         )
 
         let ads = group.ii
+        let video = ads.first { $0.assettype.lowercased() == "video" }
+        let images = ads.filter { $0.assettype.lowercased() == "image" }
 
-        // 1. Try video first ONLY if it's first in list
-        if let first = ads.first,
-           first.assettype.lowercased() == "video" {
-            // Track impression for video
-            trackImpression(for: first)
-            playVideo(first)
+        // Play video whenever one exists in the group (not only when it is first).
+        // Companion images still show beside/under it; all-image groups use the timer path.
+        if let video {
+            trackImpression(for: video)
+            for ad in images {
+                trackImpression(for: ad)
+            }
+            Task {
+                for ad in images {
+                    await loadImage(for: ad)
+                }
+            }
+            playVideo(video)
             return
         }
 
-        // 2. If no leading video → show images for group duration
-        // Track impressions for all images in the group
-        for ad in ads where ad.assettype.lowercased() == "image" {
+        for ad in images {
             trackImpression(for: ad)
         }
-        
         startGroupTimer()
-
-        // Preload images into memory
         Task {
-            for ad in group.ii where ad.assettype.lowercased() == "image" {
+            for ad in images {
                 await loadImage(for: ad)
             }
         }
@@ -546,10 +550,16 @@ private extension AdPlayerViewModel {
         }
     }
 
-    /// Fallback timer if no video (10 seconds for image groups).
+    /// Image-group dwell time: use quest `duration` when present, else 20s.
     func startGroupTimer() {
         timer?.invalidate()
-        let duration = 20
+        let defaultDuration = 20
+        let fromAPI = currentGroup?.ii
+            .filter { $0.assettype.lowercased() == "image" }
+            .compactMap(\.duration)
+            .filter { $0 > 0 }
+        let duration = fromAPI?.max() ?? defaultDuration
+        print("🖼️ Image group duration: \(duration)s\(fromAPI?.isEmpty == false ? " (from API)" : " (default)")")
         timer = Timer.scheduledTimer(withTimeInterval: TimeInterval(duration), repeats: false) { [weak self] _ in
             Task { @MainActor in
                 // Track view complete for all images in the group

@@ -29,17 +29,40 @@ struct AdPlayerView: View {
                 GeometryReader { geo in
                     let videos = group.ii.filter { $0.assettype.lowercased() == "video" }
                     let images = group.ii.filter { $0.assettype.lowercased() == "image" }
-                
+
                     let hasVideo = !videos.isEmpty
                     let hasImages = !images.isEmpty
-                    
+                    // 2 images, no video → fill left column full-height; 3+ use video+bottom+right slots with images.
+                    let imageOnlyPair = !hasVideo && images.count == 2
+                    let imageOnlyMulti = !hasVideo && images.count >= 3
+
                     let screenWidth = geo.size.width
                     let screenHeight = geo.size.height
                     let videoWidth = hasImages ? screenWidth * 0.7 : screenWidth
-                    let videoHeight = hasImages ? videoWidth * 9 / 16 : screenHeight
+                    let videoHeight: CGFloat = {
+                        if imageOnlyPair { return screenHeight }
+                        if hasImages { return videoWidth * 9 / 16 }
+                        return screenHeight
+                    }()
                     let bottomImageHeight = screenHeight - videoHeight
                     let rightImageWidth = screenWidth - videoWidth
-                    
+
+                    // Slot mapping when API sends images in the "video" position:
+                    // main  = video OR images[0] (image-only multi)
+                    // bottom = first image with video; images[1] when 3+ images only
+                    // right  = last image when 2+ images
+                    let mainImage: AdItemModel? = (imageOnlyPair || imageOnlyMulti) ? images[0] : nil
+                    let bottomImage: AdItemModel? = {
+                        if hasVideo { return images.first }
+                        if imageOnlyMulti { return images[1] }
+                        return nil
+                    }()
+                    let rightImage: AdItemModel? = {
+                        if images.count >= 2 { return images.last }
+                        if hasVideo { return images.last }
+                        return nil
+                    }()
+
                     if hasImages && !hasVideo && images.count == 1 {
                         if let img = resolveImage(for: images[0]) {
                             Image(uiImage: img)
@@ -50,8 +73,8 @@ struct AdPlayerView: View {
                         }
                     } else {
                         ZStack(alignment: .topLeading) {
-                            // MARK: - Video Player
-                            if let _ = group.ii.first(where: { $0.assettype.lowercased() == "video" }) {
+                            // MARK: - Main (video, or lead image when no video)
+                            if hasVideo {
                                 VideoPlayer(player: viewModel.activePlayer)
                                     .aspectRatio(16/9, contentMode: .fit)
                                     .frame(width: videoWidth, height: videoHeight)
@@ -59,33 +82,36 @@ struct AdPlayerView: View {
                                     .position(x: videoWidth / 2,
                                               y: hasImages ? (videoHeight / 2) : screenHeight / 2)
                                     .animation(.easeInOut(duration: 1.0), value: hasImages)
+                            } else if let mainImage, let img = resolveImage(for: mainImage) {
+                                Image(uiImage: img)
+                                    .resizable()
+                                    .aspectRatio(contentMode: .fill)
+                                    .frame(width: videoWidth, height: videoHeight)
+                                    .clipped()
+                                    .position(x: videoWidth / 2,
+                                              y: videoHeight / 2)
                             }
-                            
+
                             // MARK: - Bottom Image
-                            if let bottomAd = group.ii.filter({ $0.assettype.lowercased() == "image" }).first {
-                                if let img = resolveImage(for: bottomAd) {
-                                    Image(uiImage: img)
-                                        .resizable()
-                                        .aspectRatio(contentMode: .fill)
-                                        .frame(width: videoWidth, height: bottomImageHeight)
-                                        .clipped()
-                                        .position(x: videoWidth / 2,
-                                                  y: screenHeight - bottomImageHeight / 2)
-                                }
+                            if let bottomImage, bottomImageHeight > 1, let img = resolveImage(for: bottomImage) {
+                                Image(uiImage: img)
+                                    .resizable()
+                                    .aspectRatio(contentMode: .fill)
+                                    .frame(width: videoWidth, height: bottomImageHeight)
+                                    .clipped()
+                                    .position(x: videoWidth / 2,
+                                              y: screenHeight - bottomImageHeight / 2)
                             }
-                            
-                            // MARK: - Right Vertical Image (20% width)
-                            if let rightAd = group.ii.filter({ $0.assettype.lowercased() == "image" }).last {
-                                if let img = resolveImage(for: rightAd) {
-                                    Image(uiImage: img)
-                                        .resizable()
-                                        .aspectRatio(contentMode: .fill)
-                                        .frame(width: (screenWidth - videoWidth),
-                                               height: screenHeight)
-                                        .clipped()
-                                        .position(x: videoWidth + (rightImageWidth / 2),
-                                                  y: screenHeight / 2)
-                                }
+
+                            // MARK: - Right Vertical Image
+                            if let rightImage, let img = resolveImage(for: rightImage) {
+                                Image(uiImage: img)
+                                    .resizable()
+                                    .aspectRatio(contentMode: .fill)
+                                    .frame(width: rightImageWidth, height: screenHeight)
+                                    .clipped()
+                                    .position(x: videoWidth + (rightImageWidth / 2),
+                                              y: screenHeight / 2)
                             }
                         }
                     }
