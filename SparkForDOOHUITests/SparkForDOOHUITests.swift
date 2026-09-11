@@ -37,7 +37,7 @@ final class SparkForDOOHUITests: XCTestCase {
         )
 
         // Step 2: After the activation delay, the Ad player root view should appear.
-        // Default delay is 10s (AppConfig.activationTestTransitionDelay), so we wait a bit longer.
+        // Default failed-screen delay is 10s, so we wait a bit longer.
         let player = app.otherElements["AdPlayerRootView"]
         XCTAssertTrue(
             player.waitForExistence(timeout: 20),

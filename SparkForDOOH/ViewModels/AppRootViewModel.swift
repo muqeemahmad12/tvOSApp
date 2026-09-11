@@ -21,13 +21,10 @@ final class AppRootViewModel: ObservableObject {
     @Published var showActivationFailedFromHeartbeat = false
     
     // Keys for UserDefaults persistence
-    private static let isActivatedKey = "com.doceree.sparkfordooh.isActivated"
     private static let secureKeyKey = "com.doceree.sparkfordooh.secureKey"
     private static let deviceCodeKey = "com.doceree.sparkfordooh.deviceCode"
     private static let tickerMessageKey = "com.doceree.sparkfordooh.tickerMessage"
     private static let logoUrlKey = "com.doceree.sparkfordooh.logoUrl"
-    
-    private var heartbeatInactiveObserver: NSObjectProtocol?
     
     init() {
         // Past first-time setup only when poll secureKey exists.
@@ -36,22 +33,6 @@ final class AppRootViewModel: ObservableObject {
             self.phase = .playing
         } else {
             self.phase = .activating
-        }
-        // Observe heartbeat INACTIVE on main queue so we switch to Activation Failed when on player
-        heartbeatInactiveObserver = NotificationCenter.default.addObserver(
-            forName: .heartbeatScreenStatusInactive,
-            object: nil,
-            queue: .main
-        ) { [weak self] _ in
-            Task { @MainActor in
-                self?.handleHeartbeatScreenStatusInactive()
-            }
-        }
-    }
-    
-    deinit {
-        if let o = heartbeatInactiveObserver {
-            NotificationCenter.default.removeObserver(o)
         }
     }
     
@@ -72,8 +53,6 @@ final class AppRootViewModel: ObservableObject {
     /// Ticker/logo: non-empty updates cache; empty string clears that item; nil leaves it unchanged.
     static func saveActivation(secureKey: String?, deviceCode: String?, tickerMessage: String? = nil, logoUrl: String? = nil) {
         updateSecureKey(secureKey)
-        // Only mark activated once we actually have a secureKey from poll.
-        UserDefaults.standard.set(hasSavedSecureKey(), forKey: isActivatedKey)
         if let deviceCode = deviceCode {
             UserDefaults.standard.set(deviceCode, forKey: deviceCodeKey)
         }
@@ -94,7 +73,6 @@ final class AppRootViewModel: ObservableObject {
         guard !trimmed.isEmpty else { return }
         let previous = UserDefaults.standard.string(forKey: secureKeyKey)
         UserDefaults.standard.set(trimmed, forKey: secureKeyKey)
-        UserDefaults.standard.set(true, forKey: isActivatedKey)
         if previous != trimmed {
             print("🔑 secureKey updated from poll (was \(previous ?? "nil"), now \(trimmed))")
         } else {
@@ -176,7 +154,6 @@ final class AppRootViewModel: ObservableObject {
     
     /// Clear activation credentials (for re-activation). Ticker message and logo are never cleared.
     static func clearActivation() {
-        UserDefaults.standard.removeObject(forKey: isActivatedKey)
         UserDefaults.standard.removeObject(forKey: secureKeyKey)
         UserDefaults.standard.removeObject(forKey: deviceCodeKey)
         // Intentionally keep tickerMessageKey + logoUrlKey until a later request updates them.

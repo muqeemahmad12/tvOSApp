@@ -10,38 +10,22 @@ import CoreImage.CIFilterBuiltins
 
 struct QRCodeView: View {
     let text: String
-    var showBackground: Bool = false
     private let context = CIContext()
     private let filter = CIFilter.qrCodeGenerator()
 
     var body: some View {
-        Group {
-            if showBackground {
-                ZStack {
-                    // Background for the activation code
-                    Image("activation_code_bg")
-                        .resizable()
-                        .scaledToFit()
-                        .shadow(color: .black.opacity(0.15), radius: 6, x: 0, y: 3)
-                    
-                    qrImageView
-                        .padding(32)
-                }
-            } else {
-                qrImageView
-            }
-        }
+        qrImageView
     }
     
     private var qrImageView: some View {
         Group {
-        if let image = generateQRCode(from: text) {
-            Image(uiImage: image)
-                .interpolation(.none)
-                .resizable()
-                .scaledToFit()
-        } else {
-            Color.red
+            if let image = generateQRCode(from: text) {
+                Image(uiImage: image)
+                    .interpolation(.none)
+                    .resizable()
+                    .scaledToFit()
+            } else {
+                Color.red
             }
         }
     }

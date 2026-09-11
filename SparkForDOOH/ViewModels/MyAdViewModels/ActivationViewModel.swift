@@ -13,10 +13,8 @@ import UIKit
 @MainActor
 final class ActivationViewModel: ObservableObject {
     @Published var deviceCode = ""
-    @Published var activationStatus = ""
     @Published var activationCode = ""
     @Published var qrURL = ""
-    @Published var errorMessage: String?
     @Published var isLoading = false
     @Published var isActivated = false  // Dedicated flag for activation complete
     @Published var isActivationFailed = false  // True when poll returns INACTIVE
@@ -108,7 +106,6 @@ final class ActivationViewModel: ObservableObject {
 
     func activateDevice() {
         isLoading = true
-        errorMessage = nil
         isActivated = false
         isCodeExpired = false
 
@@ -150,7 +147,7 @@ final class ActivationViewModel: ObservableObject {
                 pollActivation()
             } catch {
                 let appError = AppError.from(error)
-                self.errorMessage = appError.localizedDescription
+                print("❌ Activation request failed:", appError)
                 self.isLoading = false
             }
         }
@@ -160,7 +157,6 @@ final class ActivationViewModel: ObservableObject {
         Task {
             do {
                 let data = try await ActivationPollAPI.shared.pollUntilActivated(deviceCode: deviceCode)
-                activationStatus = data.status
                 print("📡 Poll returned status: \(data.status)")
                 
                 // Set activation flag when status is ACTIVE
@@ -185,7 +181,7 @@ final class ActivationViewModel: ObservableObject {
                     isActivationFailed = true
                 } else {
                     let appError = AppError.from(error)
-                    self.errorMessage = appError.localizedDescription
+                    print("❌ Activation poll failed:", appError)
                 }
             }
             self.isLoading = false
@@ -199,13 +195,6 @@ final class ActivationViewModel: ObservableObject {
     
     private func checkIfInactive(_ status: String) -> Bool {
         return status.uppercased() == "INACTIVE"
-    }
-    
-    /// Clear activation-failed state and request a new activation code (e.g. after "Try again").
-    func retryActivation() {
-        isActivationFailed = false
-        errorMessage = nil
-        activateDevice()
     }
 
     private func buildActivationPayload() -> ActivationRequest {
@@ -236,7 +225,6 @@ final class ActivationViewModel: ObservableObject {
     
     private func handleActivationResponse(_ data: ActivationData) {
         self.deviceCode = data.deviceCode
-        self.activationStatus = data.status
         self.activationCode = data.userCode      // assuming userCode IS the activation code
 
         self.qrURL = generateQRUrl()

@@ -40,15 +40,6 @@ final class MediaSessionHelper {
         print("🔇 Cleared Now Playing info")
     }
     
-    /// Set minimal Now Playing info (optional - can help control what's displayed)
-    func setMinimalNowPlayingInfo() {
-        MPNowPlayingInfoCenter.default().nowPlayingInfo = [
-            MPMediaItemPropertyTitle: "",
-            MPMediaItemPropertyArtist: "",
-            MPNowPlayingInfoPropertyPlaybackRate: 1.0
-        ]
-    }
-    
     /// Begin receiving remote control events
     func beginReceivingRemoteControlEvents() {
         UIApplication.shared.beginReceivingRemoteControlEvents()

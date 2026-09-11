@@ -13,7 +13,6 @@ struct AdPlayerView: View {
     @StateObject private var viewModel = AdPlayerViewModel()
     @ObservedObject var listVM: AdPlaylistViewModel
     @Environment(\.scenePhase) private var scenePhase
-    @State private var videoFullScreen = false
     @State private var tickerMessage: String? = nil
     @State private var logoUrl: String? = nil
 
@@ -192,7 +191,7 @@ struct AdPlayerView: View {
         // Check if it's a bundle image (safe content)
         if ad.itemurl.hasPrefix("bundle://") {
             let imageName = ad.itemurl.replacingOccurrences(of: "bundle://", with: "")
-            return UIImage(named: imageName) ?? SafeContentManager.shared.getSafeContentImage()
+            return UIImage(named: imageName) ?? UIImage(named: "placeholder_image")
         }
         
         // Otherwise look in the cache

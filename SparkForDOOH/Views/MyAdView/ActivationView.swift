@@ -133,7 +133,7 @@ private struct ActivationCodeSection: View {
                     .padding(.top, 16)
                 
                 ZStack {
-                    QRCodeView(text: qrURL, showBackground: false)
+                    QRCodeView(text: qrURL)
                         .frame(width: 320, height: 320)
                         .opacity(isRefreshing ? 0.3 : 1.0)
                         .padding(.vertical, 8)

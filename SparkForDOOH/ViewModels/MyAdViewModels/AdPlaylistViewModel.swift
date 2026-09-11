@@ -9,14 +9,12 @@ import Foundation
 import Combine
 
 /// Loads and exposes the current ad playlist (grouped ads) for a given screen,
-/// handling loading state, basic retries, caching, and user-friendly error messages.
+/// handling loading state, basic retries, and offline cache.
 @MainActor
 final class AdPlaylistViewModel: ObservableObject {
-    @Published var ads: [AdItemModel] = []                // Flattened list (optional)
-    @Published var groupedAds: [AdSequenceGroup] = []     // Grouped list (1–3 per sequence)
+    @Published var groupedAds: [AdSequenceGroup] = []
     @Published var isLoading = false
-    @Published var errorMessage: String?
-    @Published var isUsingCachedPlaylist = false          // True if using offline cache
+    @Published var isUsingCachedPlaylist = false
     
     private let cacheService = PlaylistCacheService.shared
     private var questPlaylistObserver: NSObjectProtocol?
@@ -48,9 +46,7 @@ final class AdPlaylistViewModel: ObservableObject {
         let playable = groups.displayableGroups()
         if playable == groupedAds { return }
         groupedAds = playable
-        ads = playable.flatMap { $0.ii }
         isUsingCachedPlaylist = false
-        errorMessage = nil
         if playable.isEmpty {
             print("📂 Playlist VM cleared from sync — waiting for playable content")
         } else {
@@ -62,7 +58,6 @@ final class AdPlaylistViewModel: ObservableObject {
     func loadCachedPlaylistIfAvailable() {
         if let cached = cacheService.loadCachedPlaylist()?.displayableGroups(), !cached.isEmpty {
             groupedAds = cached
-            ads = cached.flatMap { $0.ii }
             isUsingCachedPlaylist = true
             print("📂 Using cached playlist for immediate playback")
         }
@@ -77,17 +72,14 @@ final class AdPlaylistViewModel: ObservableObject {
             if !groupedAds.isEmpty {
                 print("📴 Offline — playing cached playlist (skipping quest fetch)")
                 isLoading = false
-                errorMessage = nil
                 return
             }
             print("📴 Offline — no cached playlist available")
             isLoading = false
-            errorMessage = "No network connection"
             return
         }
 
         isLoading = true
-        errorMessage = nil
 
         Task {
             do {
@@ -106,7 +98,6 @@ final class AdPlaylistViewModel: ObservableObject {
                        let cached = cacheService.loadCachedPlaylist()?.displayableGroups(),
                        !cached.isEmpty {
                         groupedAds = cached
-                        ads = cached.flatMap { $0.ii }
                         isUsingCachedPlaylist = true
                         print("📂 Quest has no playable image/video — continuing with cached playlist")
                         SentryService.shared.track(SentryAnalyticsEvent.playlistEmpty, attributes: ["used_cache": "true", "reason": "no_playable_media"])
@@ -120,9 +111,8 @@ final class AdPlaylistViewModel: ObservableObject {
                     SentryService.shared.breadcrumb(category: "playlist", message: "empty_or_unplayable_response", data: [:])
                 } else {
                     groupedAds = groups
-                    ads = groups.flatMap { $0.ii }
                     isUsingCachedPlaylist = false
-                    let itemCount = ads.count
+                    let itemCount = groups.flatMap(\.ii).count
                     SentryService.shared.track(
                         SentryAnalyticsEvent.playlistLoaded,
                         attributes: ["group_count": "\(groups.count)", "item_count": "\(itemCount)"]
@@ -137,7 +127,6 @@ final class AdPlaylistViewModel: ObservableObject {
                 }
             } catch {
                 let appError = AppError.from(error)
-                errorMessage = appError.localizedDescription
                 print("❌ Playlist API Failed:", appError)
                 let errSummary = String(describing: appError).prefix(200)
                 SentryService.shared.track(SentryAnalyticsEvent.playlistFetchFailed, attributes: ["error": String(errSummary)])
@@ -150,7 +139,6 @@ final class AdPlaylistViewModel: ObservableObject {
                 // Fall back to cached playlist if API fails
                 if groupedAds.isEmpty, let cached = cacheService.loadCachedPlaylist()?.displayableGroups(), !cached.isEmpty {
                     groupedAds = cached
-                    ads = cached.flatMap { $0.ii }
                     isUsingCachedPlaylist = true
                     print("📂 API failed - using cached playlist as fallback")
                     SentryService.shared.track(SentryAnalyticsEvent.playlistUsedCache)

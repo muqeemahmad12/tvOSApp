@@ -323,13 +323,8 @@ final class SentryService {
     }
     #endif
 
-    /// Record a non-fatal error (counts toward crash-free sessions in Sentry).
-    func capture(error: Error) {
-        capture(error: error, tags: [:])
-    }
-
     /// Non-fatal error with optional tags (e.g. `["layer": "playback"]`) for filtering in Issues.
-    func capture(error: Error, tags: [String: String]) {
+    func capture(error: Error, tags: [String: String] = [:]) {
         #if canImport(Sentry)
         guard SentrySDK.isEnabled else { return }
         if tags.isEmpty {

@@ -91,10 +91,6 @@ struct AdItemModel: Codable, Identifiable, Equatable {
     let schedulestarttime: String?
     let scheduleendtime: String?
 
-    // Enriched metadata (not part of JSON, set after mapping)
-    var sequence: Int?
-    var facilityid: String?
-
     enum CodingKeys: String, CodingKey {
         case itemid, assettype, assetcat, itemurl, itemsize, duration
         case isFlex = "is_flex"
@@ -113,9 +109,7 @@ struct AdItemModel: Codable, Identifiable, Equatable {
         itemspeciality: String? = nil,
         subcampaignid: String? = nil,
         schedulestarttime: String? = nil,
-        scheduleendtime: String? = nil,
-        sequence: Int? = nil,
-        facilityid: String? = nil
+        scheduleendtime: String? = nil
     ) {
         self.itemid = itemid
         self.assettype = assettype
@@ -129,8 +123,6 @@ struct AdItemModel: Codable, Identifiable, Equatable {
         self.subcampaignid = subcampaignid
         self.schedulestarttime = schedulestarttime
         self.scheduleendtime = scheduleendtime
-        self.sequence = sequence
-        self.facilityid = facilityid
     }
 
     init(from decoder: Decoder) throws {
@@ -292,19 +284,6 @@ extension AdItemModel {
         isDisplayableAsset
             && !itemurl.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
             && hasPlayableMediaExtension
-    }
-
-    var isTooLarge: Bool {
-        guard let size = itemsize else { return false }
-        let components = size.lowercased()
-            .replacingOccurrences(of: " ", with: "")
-            .split(separator: "x")
-        guard components.count == 2,
-              let width = Int(components[0]),
-              let height = Int(components[1]) else {
-            return false
-        }
-        return width > 2126 || height > 3840
     }
 }
 

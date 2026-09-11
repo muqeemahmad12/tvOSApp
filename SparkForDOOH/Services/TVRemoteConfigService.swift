@@ -37,19 +37,11 @@ final class TVRemoteConfigStore {
     private let lock = NSLock()
     private var _activationBaseString: String?
     private var _drsBaseString: String?
-    private var _forceUpdate: Bool = false
     private var _sparkPortalURLFromRemote: String?
     private var _appKeyFromRemote: String?
-    private(set) var isLoaded: Bool = false
     private(set) var selectedKey: String = "plist"
 
     private init() {}
-
-    var forceUpdate: Bool {
-        lock.lock()
-        defer { lock.unlock() }
-        return _forceUpdate
-    }
 
     /// Keen `x-api-key` from tv-config `app_key`, else AppConfig default.
     var appKey: String {
@@ -100,7 +92,6 @@ final class TVRemoteConfigStore {
         defer { lock.unlock() }
         _activationBaseString = Self.normalizeBaseURL(entry.activation_base_url)
         _drsBaseString = Self.normalizeBaseURL(entry.drs_base_url)
-        _forceUpdate = entry.force_update
         let spark = entry.spark_portal_url?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
         if !spark.isEmpty, URL(string: spark) != nil {
             _sparkPortalURLFromRemote = spark
@@ -109,7 +100,6 @@ final class TVRemoteConfigStore {
         }
         let appKey = entry.app_key?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
         _appKeyFromRemote = appKey.isEmpty ? nil : appKey
-        isLoaded = true
         selectedKey = key
     }
 

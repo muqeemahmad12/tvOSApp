@@ -22,11 +22,8 @@ final class AdPlayerViewModel: ObservableObject {
     @Published var currentGroup: AdSequenceGroup?
     @Published var groupedAds: [AdSequenceGroup] = []
     @Published var imageCache: [String: UIImage] = [:]
-    @Published var slideOffset: CGFloat = 0.0
     @Published var isPreloading = false
     @Published var preloadProgress: Double = 0.0
-    @Published var errorMessage: String?
-    @Published var contentOpacity: Double = 1.0  // For crossfade transitions
     /// Controls when overlay UI (ticker/time/logo) should appear.
     @Published var isPlayerReadyForOverlay = false
     /// True when there is nothing displayable (empty / Banner-only / etc.) — show waiting UI.
@@ -43,7 +40,6 @@ final class AdPlayerViewModel: ObservableObject {
     fileprivate var reqNum = 1
     fileprivate var screenId: String
     fileprivate var repeatInTime: TimeInterval
-    fileprivate var lastAppliedSync: Date = .distantPast
     fileprivate var playerItemStatusObservation: NSKeyValueObservation?
     fileprivate var videoEndObserver: NSObjectProtocol?
     fileprivate var videoFailedObserver: NSObjectProtocol?
@@ -249,14 +245,6 @@ private extension AdPlayerViewModel {
         var completed = 0.0
 
         for ad in allAds {
-            // If we ever re-enable size checks, this is where we'd skip huge assets.
-//            if ad.isTooLarge {
-//                print("⏭️ Skipping large asset (\(ad.itemsize ?? \"unknown\")) — \(ad.itemurl)")
-//                completed += 1
-//                await MainActor.run { preloadProgress = completed / total }
-//                continue
-//            }
-
             if let url = await downloadAsset(ad.itemurl) {
                 localURLs[ad.itemurl] = url
             }
@@ -684,7 +672,7 @@ private extension AdPlayerViewModel {
             attributes: [
                 "asset_type": String(ad.assettype.prefix(32)),
                 "item_id": itemId,
-                "sequence": ad.sequence.map { String($0) } ?? ""
+                "sequence": "\(currentGroup?.sequence ?? 0)"
             ],
             sampleRate: 0.2
         )
@@ -701,18 +689,6 @@ private extension AdPlayerViewModel {
         guard !disablePreloadingAndValidation else { return }
         if let trackers = ad.trackerlist, !trackers.isEmpty {
             TrackerService.shared.fire(urls: trackers)
-        }
-    }
-
-    func isVideoPlayable(url: URL) async -> Bool {
-        let asset = AVURLAsset(url: url)
-
-        do {
-            let playable = try await asset.load(.isPlayable)
-            return playable
-        } catch {
-            print("🛑 Asset load failed:", error)
-            return false
         }
     }
 
@@ -787,7 +763,6 @@ private extension AdPlayerViewModel {
             currentIndex = 0
         }
 
-        slideOffset = 0
         playCurrentGroup()
     }
 }
@@ -936,7 +911,6 @@ private extension AdPlayerViewModel {
         showsLShapeCompanions = false
         groupedAds = newGroups
         currentIndex = 0
-        lastAppliedSync = Date()
 
         // STEP 5 — Decode ALL images into memory (current playlist only)
         print("🖼️ Rebuilding in-memory image cache…")

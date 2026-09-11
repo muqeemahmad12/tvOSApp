@@ -20,8 +20,6 @@ final class NetworkMonitor: ObservableObject {
     private let primaryMonitor = NWPathMonitor()
     private let wifiMonitor = NWPathMonitor(requiredInterfaceType: .wifi)
     private let queue = DispatchQueue(label: "com.doceree.sparkfordooh.networkmonitor")
-    // Optional HTTP probe override; if nil we rely on fast TCP reachability.
-    private var probeOverrideURL: URL?
     // Multiple TCP targets to reduce single-host block risk.
     private let tcpTargets: [(host: NWEndpoint.Host, port: NWEndpoint.Port)] = [
         (host: "1.1.1.1", port: 80),
@@ -29,15 +27,6 @@ final class NetworkMonitor: ObservableObject {
         (host: "208.67.222.222", port: 80)
     ]
     private var periodicProbeTask: Task<Void, Never>?
-    private let probeSession: URLSession = {
-        let config = URLSessionConfiguration.default
-        config.waitsForConnectivity = true
-        config.allowsExpensiveNetworkAccess = true
-        config.allowsConstrainedNetworkAccess = true
-        config.timeoutIntervalForRequest = 4
-        config.timeoutIntervalForResource = 6
-        return URLSession(configuration: config)
-    }()
     enum ConnectionType {
         case wifi
         case cellular
@@ -71,19 +60,6 @@ final class NetworkMonitor: ObservableObject {
         
         // Evaluate the current path immediately so cold starts reflect reality.
         evaluateCurrentPath(reason: "InitialPath")
-    }
-    
-    func stopMonitoring() {
-        primaryMonitor.cancel()
-        wifiMonitor.cancel()
-    }
-
-    /// Allow callers to supply a known-allowed HTTP endpoint for probing (e.g., your own health check).
-    func setProbeOverrideURL(_ url: URL?) {
-        DispatchQueue.main.async { [weak self] in
-            self?.probeOverrideURL = url
-            print("🛰️ Probe override set to \(url?.absoluteString ?? "nil (TCP-only)")")
-        }
     }
 
     /// Manually refresh connectivity (useful when returning to foreground).
@@ -153,24 +129,6 @@ final class NetworkMonitor: ObservableObject {
                 }
             }
             if tcpSucceeded { return true }
-        }
-        
-        // If provided, try a single lightweight HTTP(S) probe (user-allowed endpoint).
-        if let url = probeOverrideURL {
-            var request = URLRequest(url: url)
-            request.httpMethod = "HEAD"
-            request.cachePolicy = .reloadIgnoringLocalAndRemoteCacheData
-            request.timeoutInterval = 3
-            do {
-                let (_, response) = try await probeSession.data(for: request)
-                if let http = response as? HTTPURLResponse,
-                   (200...399).contains(http.statusCode) {
-                    print("🛰️ Probe succeeded at \(url.host ?? url.absoluteString)")
-                    return true
-                }
-            } catch {
-                print("🛰️ HTTP probe failed for \(url) with \(error.localizedDescription)")
-            }
         }
         
         return false

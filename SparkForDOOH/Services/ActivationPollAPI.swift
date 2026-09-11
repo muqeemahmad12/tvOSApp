@@ -13,9 +13,6 @@ final class ActivationPollAPI {
     static let shared = ActivationPollAPI()
     private init() {}
 
-    /// When true, poll always shows Activation Failed (INACTIVE) screen regardless of backend status.
-    private let showInactiveScreenOnly = false
-
     func pollOnce(deviceCode: String) async throws -> ActivationPollData {
         await TVRemoteConfigService.waitUntilLaunchConfigNetworkFinished()
         let url = TVRemoteConfigStore.shared.activationURL(pathComponents: "dooh", "device", "activation", "poll")
@@ -72,9 +69,6 @@ final class ActivationPollAPI {
             let result = try await pollOnce(deviceCode: deviceCode)
             let status = result.status.uppercased()
 
-            if showInactiveScreenOnly {
-                throw AppError.activationInactive
-            }
             if status == "ACTIVE" || status == "ACTIVATED" {
                 return result
             }

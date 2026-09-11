@@ -15,14 +15,10 @@ struct AppConfig {
     let sparkPortalURL: URL
     let screenId: String
     let sentryDSN: String
-    /// `x-api-key` for activation / heartbeat (Keen).
+    /// Keen fallback `x-api-key` (activation request). Heartbeat/quest use poll `secureKey`.
     let apiKey: String
-    /// Static DRS quest key (Info.plist `DRS_QUEST_API_KEY`); not used as quest `x-api-key` (that is poll `secureKey`).
-    let drsQuestApiKey: String
     let adsCacheMaxBytes: UInt64
     let playlistRepeatInterval: TimeInterval
-    let activationTestTransitionDelay: TimeInterval
-    let activationAutoAdvanceForDebug: Bool
 
     init(
         drsBaseURL: URL? = nil,
@@ -31,11 +27,8 @@ struct AppConfig {
         screenId: String? = nil,
         sentryDSN: String? = nil,
         apiKey: String? = nil,
-        drsQuestApiKey: String? = nil,
         adsCacheMaxBytes: UInt64? = nil,
-        playlistRepeatInterval: TimeInterval = 15 * 60,
-        activationTestTransitionDelay: TimeInterval = 10,
-        activationAutoAdvanceForDebug: Bool = false
+        playlistRepeatInterval: TimeInterval = 15 * 60
     ) {
         self.drsBaseURL = drsBaseURL
             ?? AppConfig.urlFromInfoPlist(key: "DRS_BASE_URL")
@@ -55,9 +48,6 @@ struct AppConfig {
         self.apiKey = apiKey
             ?? AppConfig.stringFromInfoPlist(key: "API_KEY")
             ?? "f06d261b-c6ff-4feb-b0c2-71e54ed7b1fe"
-        self.drsQuestApiKey = drsQuestApiKey
-            ?? AppConfig.stringFromInfoPlist(key: "DRS_QUEST_API_KEY")
-            ?? "fdd74745-a0ed-440c-ad10-3815d659a599"
 
         let cacheMaxMB: Double
         if let bytes = adsCacheMaxBytes {
@@ -69,8 +59,6 @@ struct AppConfig {
         }
         self.adsCacheMaxBytes = UInt64(cacheMaxMB * 1024 * 1024)
         self.playlistRepeatInterval = playlistRepeatInterval
-        self.activationTestTransitionDelay = activationTestTransitionDelay
-        self.activationAutoAdvanceForDebug = activationAutoAdvanceForDebug
     }
 
     private static func urlFromInfoPlist(key: String) -> URL? {
