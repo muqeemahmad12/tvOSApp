@@ -18,6 +18,7 @@ final class AdPlaylistViewModel: ObservableObject {
     
     private let cacheService = PlaylistCacheService.shared
     private var questPlaylistObserver: NSObjectProtocol?
+    private var cachesClearedObserver: NSObjectProtocol?
 
     init() {
         // Always hydrate from cache immediately so offline launches can play.
@@ -33,11 +34,26 @@ final class AdPlaylistViewModel: ObservableObject {
                 self?.applySyncedPlaylist(groups)
             }
         }
+
+        cachesClearedObserver = NotificationCenter.default.addObserver(
+            forName: .playbackCachesClearedOnDeactivation,
+            object: nil,
+            queue: .main
+        ) { [weak self] _ in
+            Task { @MainActor in
+                self?.groupedAds = []
+                self?.isUsingCachedPlaylist = false
+                print("📂 Playlist VM cleared after deactivation cache wipe")
+            }
+        }
     }
 
     deinit {
         if let questPlaylistObserver {
             NotificationCenter.default.removeObserver(questPlaylistObserver)
+        }
+        if let cachesClearedObserver {
+            NotificationCenter.default.removeObserver(cachesClearedObserver)
         }
     }
 

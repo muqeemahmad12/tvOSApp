@@ -17,7 +17,7 @@ final class ActivationViewModel: ObservableObject {
     @Published var qrURL = ""
     @Published var isLoading = false
     @Published var isActivated = false  // Dedicated flag for activation complete
-    @Published var isActivationFailed = false  // True when poll returns INACTIVE
+    @Published var isScreenInactivated = false  // Show ScreenInactivatedView until restart / re-login
     @Published var isCodeExpired = false  // Shows refresh button after 15 min
     @Published var timeRemaining: Int = 15 * 60  // 15 minutes in seconds
     
@@ -79,15 +79,11 @@ final class ActivationViewModel: ObservableObject {
                     )
                     print("📢 Activated on expiry check: \(data.status)")
                     isActivated = true
-                } else if status == "PENDING" || status == "INACTIVE" {
-                    // PENDING is not an error by itself; it becomes an error here because we didn't get ACTIVE within 15 mins (timer just completed). INACTIVE = screen deactivated. Show Activation Failed for 10 seconds, then refresh code.
-                    isActivationFailed = true
-                    DispatchQueue.main.asyncAfter(deadline: .now() + 10) { [weak self] in
-                        Task { @MainActor in
-                            self?.isActivationFailed = false
-                            self?.refreshActivationCode()
-                        }
-                    }
+                } else if status == "INACTIVE" {
+                    enterInactivationForReregister()
+                } else if status == "PENDING" {
+                    // PENDING past 15 min — show inactivated UI, then re-register with a new code.
+                    enterInactivationForReregister()
                 } else {
                     refreshActivationCode()
                 }
@@ -108,6 +104,7 @@ final class ActivationViewModel: ObservableObject {
         isLoading = true
         isActivated = false
         isCodeExpired = false
+        isScreenInactivated = false
 
         Task {
             do {
@@ -125,10 +122,9 @@ final class ActivationViewModel: ObservableObject {
                 
                 handleActivationResponse(result)
                 
-                // If backend returned INACTIVE, show activation failed
-                if checkIfInactive(result.status) {
-                    isActivationFailed = true
-                    isLoading = false
+                // If backend returned inactivated (API INACTIVE), require re-registration.
+                if checkIfInactivated(result.status) {
+                    enterInactivationForReregister()
                     return
                 }
                 
@@ -173,12 +169,13 @@ final class ActivationViewModel: ObservableObject {
                     )
                     print("📢 Ticker: \(data.tickerMessage ?? "none"), Logo: \(data.logoUrl ?? "none")")
                     isActivated = true
-                } else if checkIfInactive(data.status) {
-                    isActivationFailed = true
+                } else if checkIfInactivated(data.status) {
+                    enterInactivationForReregister()
                 }
             } catch {
-                if let appErr = error as? AppError, case .activationInactive = appErr {
-                    isActivationFailed = true
+                if let appErr = error as? AppError, case .screenDeactivated = appErr {
+                    // Poll API throws this for status INACTIVE → re-register flow.
+                    enterInactivationForReregister()
                 } else {
                     let appError = AppError.from(error)
                     print("❌ Activation poll failed:", appError)
@@ -187,13 +184,24 @@ final class ActivationViewModel: ObservableObject {
             self.isLoading = false
         }
     }
+
+    /// Show Screen Inactivated and stay; clear credentials. New QR after app restart / re-login.
+    private func enterInactivationForReregister() {
+        stopTimers()
+        isScreenInactivated = true
+        isLoading = false
+        AppRootViewModel.clearActivationCredentials()
+        AppRootViewModel.clearPlaybackCaches()
+        HeartbeatAPI.shared.stopHeartbeat()
+        print("🔒 Screen Inactivated — credentials cleared; stay until restart / re-login")
+    }
     
     private func checkIfActivated(_ status: String) -> Bool {
         let normalized = status.uppercased()
         return normalized == "ACTIVE" || normalized == "ACTIVATED"
     }
     
-    private func checkIfInactive(_ status: String) -> Bool {
+    private func checkIfInactivated(_ status: String) -> Bool {
         return status.uppercased() == "INACTIVE"
     }
 

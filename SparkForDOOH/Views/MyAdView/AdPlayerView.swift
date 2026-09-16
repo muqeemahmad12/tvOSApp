@@ -26,16 +26,18 @@ struct AdPlayerView: View {
                 LoadingView(downloadProgress: viewModel.preloadProgress)
             } else if let group = viewModel.currentGroup {
                 GeometryReader { geo in
-                    let videos = group.ii.filter { $0.assettype.lowercased() == "video" }
-                    let images = group.ii.filter { $0.assettype.lowercased() == "image" }
+                    let mainIdx = group.lShapeMainIndex
+                    let mainItem = mainIdx.map { group.ii[$0] }
+                    let companions = group.lShapeCompanions
+                    let playableMainVideo = mainItem.map { $0.isVideoType && $0.hasMinimumPlayableFields } ?? false
+                    let unplayableMainVideo = mainItem.map { $0.isVideoType && !$0.hasMinimumPlayableFields } ?? false
+                    let hasCompanionSlots = !companions.isEmpty
 
-                    let hasVideo = !videos.isEmpty
-                    let hasImages = !images.isEmpty
-                    // Video + companions while L-shape is active; then video scales fullscreen.
-                    let showVideoCompanions = hasVideo && hasImages && viewModel.showsLShapeCompanions
-                    // 2 images, no video → fill left column full-height; 3+ use video+bottom+right slots with images.
-                    let imageOnlyPair = !hasVideo && images.count == 2
-                    let imageOnlyMulti = !hasVideo && images.count >= 3
+                    // Video (or white video slot) + companions while L-shape is active.
+                    let showVideoCompanions = (playableMainVideo || unplayableMainVideo) && hasCompanionSlots && viewModel.showsLShapeCompanions
+                    // Image-only layouts (no video slot in group).
+                    let imageOnlyPair = mainIdx == nil && companions.count == 2
+                    let imageOnlyMulti = mainIdx == nil && companions.count >= 3
 
                     let screenWidth = geo.size.width
                     let screenHeight = geo.size.height
@@ -48,34 +50,31 @@ struct AdPlayerView: View {
                     let bottomImageHeight = screenHeight - videoHeight
                     let rightImageWidth = screenWidth - videoWidth
 
-                    // Slot mapping when API sends images in the "video" position:
-                    // main  = video OR images[0] (image-only multi)
-                    // bottom = first image with video; images[1] when 3+ images only
-                    // right  = last image when 2+ images
-                    let mainImage: AdItemModel? = (imageOnlyPair || imageOnlyMulti) ? images[0] : nil
+                    // Slot mapping by API order — never reuse one companion for two slots when
+                    // another (possibly unplayable) item exists for that place.
+                    let mainImage: AdItemModel? = (imageOnlyPair || imageOnlyMulti) ? companions[0] : nil
                     let bottomImage: AdItemModel? = {
-                        if showVideoCompanions { return images.first }
-                        if imageOnlyMulti { return images[1] }
+                        if showVideoCompanions { return companions[0] }
+                        if imageOnlyMulti { return companions[1] }
                         return nil
                     }()
                     let rightImage: AdItemModel? = {
-                        if showVideoCompanions, images.count >= 1 { return images.last }
-                        if !hasVideo, images.count >= 2 { return images.last }
+                        if showVideoCompanions {
+                            if companions.count >= 2 { return companions[1] }
+                            // True single companion (video + 1 item only) → both side panels.
+                            return group.ii.count == 2 ? companions[0] : nil
+                        }
+                        if imageOnlyPair || imageOnlyMulti { return companions.last }
                         return nil
                     }()
 
-                    if hasImages && !hasVideo && images.count == 1 {
-                        if let img = resolveImage(for: images[0]) {
-                            Image(uiImage: img)
-                                .resizable()
-                                .aspectRatio(contentMode: .fill)
-                                .frame(width: geo.size.width, height: geo.size.height)
-                                .clipped()
-                        }
+                    if mainIdx == nil && companions.count == 1 {
+                        slotContent(for: companions[0], width: geo.size.width, height: geo.size.height)
+                            .position(x: geo.size.width / 2, y: geo.size.height / 2)
                     } else {
                         ZStack(alignment: .topLeading) {
                             // MARK: - Main (video fullscreen or L-shape, or lead image when no video)
-                            if hasVideo {
+                            if playableMainVideo {
                                 // Non-interactive layer so Menu reaches the exit confirmation
                                 // (SwiftUI VideoPlayer steals focus and swallows Menu).
                                 NonInteractiveVideoPlayer(player: viewModel.activePlayer)
@@ -86,34 +85,25 @@ struct AdPlayerView: View {
                                     .position(x: videoWidth / 2,
                                               y: showVideoCompanions ? (videoHeight / 2) : screenHeight / 2)
                                     .animation(.easeInOut(duration: 1.0), value: showVideoCompanions)
-                            } else if let mainImage, let img = resolveImage(for: mainImage) {
-                                Image(uiImage: img)
-                                    .resizable()
-                                    .aspectRatio(contentMode: .fill)
+                            } else if unplayableMainVideo && showVideoCompanions {
+                                Color.white
                                     .frame(width: videoWidth, height: videoHeight)
-                                    .clipped()
-                                    .position(x: videoWidth / 2,
-                                              y: videoHeight / 2)
+                                    .position(x: videoWidth / 2, y: videoHeight / 2)
+                            } else if let mainImage {
+                                slotContent(for: mainImage, width: videoWidth, height: videoHeight)
+                                    .position(x: videoWidth / 2, y: videoHeight / 2)
                             }
 
                             // MARK: - Bottom Image
-                            if let bottomImage, bottomImageHeight > 1, let img = resolveImage(for: bottomImage) {
-                                Image(uiImage: img)
-                                    .resizable()
-                                    .aspectRatio(contentMode: .fill)
-                                    .frame(width: videoWidth, height: bottomImageHeight)
-                                    .clipped()
+                            if let bottomImage, bottomImageHeight > 1 {
+                                slotContent(for: bottomImage, width: videoWidth, height: bottomImageHeight)
                                     .position(x: videoWidth / 2,
                                               y: screenHeight - bottomImageHeight / 2)
                             }
 
                             // MARK: - Right Vertical Image
-                            if let rightImage, let img = resolveImage(for: rightImage) {
-                                Image(uiImage: img)
-                                    .resizable()
-                                    .aspectRatio(contentMode: .fill)
-                                    .frame(width: rightImageWidth, height: screenHeight)
-                                    .clipped()
+                            if let rightImage {
+                                slotContent(for: rightImage, width: rightImageWidth, height: screenHeight)
                                     .position(x: videoWidth + (rightImageWidth / 2),
                                               y: screenHeight / 2)
                             }
@@ -125,7 +115,7 @@ struct AdPlayerView: View {
                 if listVM.groupedAds.isEmpty && !listVM.isLoading {
                     WaitingForContentView()
                 } else {
-                    LoadingView()
+                    LoadingView(downloadProgress: viewModel.isPreloading ? viewModel.preloadProgress : nil)
                 }
             }
             
@@ -161,6 +151,9 @@ struct AdPlayerView: View {
             HeartbeatAPI.shared.startHeartbeat()
             
             viewModel.startPlayback(with: listVM.groupedAds)
+            if HeartbeatAPI.shared.isAwaitingActiveStatus {
+                viewModel.pauseForDeactivation()
+            }
         }
         .onDisappear {
             // Re-enable idle timer when leaving player
@@ -171,21 +164,50 @@ struct AdPlayerView: View {
             MediaSessionHelper.shared.cleanup()
             
             viewModel.stop()
-            HeartbeatAPI.shared.stopHeartbeat()
+            TickerMarqueeEngine.shared.stop()
+            // Keep heartbeat while deactivated so we can wait for ACTIVE.
+            if !HeartbeatAPI.shared.isAwaitingActiveStatus {
+                HeartbeatAPI.shared.stopHeartbeat()
+            }
         }
-        // Listen for ticker/logo updates from heartbeat
+        // Listen for ticker/logo updates from heartbeat — refresh overlay immediately.
         .onReceive(NotificationCenter.default.publisher(for: .tickerUpdated)) { _ in
             tickerMessage = AppRootViewModel.getSavedTickerMessage()
             logoUrl = AppRootViewModel.getSavedLogoUrl()
         }
+        .onReceive(NotificationCenter.default.publisher(for: .screenDidDeactivate)) { _ in
+            viewModel.pauseForDeactivation()
+        }
+        .onReceive(NotificationCenter.default.publisher(for: .screenDidInactivate)) { _ in
+            viewModel.pauseForDeactivation()
+        }
+        .onReceive(NotificationCenter.default.publisher(for: .heartbeatScreenStatusActive)) { _ in
+            // Notification is only posted when recovering from deactivation (see HeartbeatAPI).
+            viewModel.resumeAfterReactivation()
+        }
         // Auto-resume playback when app becomes active (TV wake, resume from background)
         .onChange(of: scenePhase) { phase in
-            if phase == .active {
+            if phase == .active, !HeartbeatAPI.shared.isAwaitingActiveStatus {
                 viewModel.resumePlayback()
             }
         }
     }
     
+    // MARK: - Slot helpers (playable image or white placeholder)
+    @ViewBuilder
+    private func slotContent(for ad: AdItemModel, width: CGFloat, height: CGFloat) -> some View {
+        if ad.hasMinimumPlayableFields, let img = resolveImage(for: ad) {
+            Image(uiImage: img)
+                .resizable()
+                .aspectRatio(contentMode: .fill)
+                .frame(width: width, height: height)
+                .clipped()
+        } else {
+            Color.white
+                .frame(width: width, height: height)
+        }
+    }
+
     // MARK: - Helper to resolve images (cache, bundle, or safe content)
     private func resolveImage(for ad: AdItemModel) -> UIImage? {
         // Check if it's a bundle image (safe content)

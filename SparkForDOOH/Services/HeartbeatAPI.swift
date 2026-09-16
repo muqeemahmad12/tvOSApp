@@ -21,7 +21,16 @@ extension Notification.Name {
     static let initialHeartbeatFailed = Notification.Name("com.doceree.sparkfordooh.initialHeartbeatFailed")
 
     /// Posted when a heartbeat response has data.screenStatus == "INACTIVE" (screen deactivated remotely).
-    static let heartbeatScreenStatusInactive = Notification.Name("com.doceree.sparkfordooh.heartbeatScreenStatusInactive")
+    static let screenDidDeactivate = Notification.Name("com.doceree.sparkfordooh.screenDidDeactivate")
+
+    /// Posted when heartbeat reports ACTIVE again (resume after deactivated screen).
+    static let heartbeatScreenStatusActive = Notification.Name("com.doceree.sparkfordooh.heartbeatScreenStatusActive")
+
+    /// Posted when the screen must re-register / re-login (inactivated).
+    static let screenDidInactivate = Notification.Name("com.doceree.sparkfordooh.screenDidInactivate")
+
+    /// Posted after every successful heartbeat response (even if ticker/logo unchanged).
+    static let heartbeatDidComplete = Notification.Name("com.doceree.sparkfordooh.heartbeatDidComplete")
 }
 
 /// Heartbeat API for sending device status to the backend.
@@ -43,17 +52,49 @@ final class HeartbeatAPI {
         let screenStatus: String?
         let logoUrl: String?
         let tickerMessage: String?
+        /// Rotated key from server (also accepted as `secret`).
+        let secureKey: String?
+
+        enum CodingKeys: String, CodingKey {
+            case screenStatus, logoUrl, tickerMessage, secureKey, secret
+        }
+
+        init(from decoder: Decoder) throws {
+            let c = try decoder.container(keyedBy: CodingKeys.self)
+            screenStatus = try c.decodeIfPresent(String.self, forKey: .screenStatus)
+            logoUrl = try c.decodeIfPresent(String.self, forKey: .logoUrl)
+            tickerMessage = try c.decodeIfPresent(String.self, forKey: .tickerMessage)
+            let fromSecure = try c.decodeIfPresent(String.self, forKey: .secureKey)
+            let fromSecret = try c.decodeIfPresent(String.self, forKey: .secret)
+            let trimmedSecure = fromSecure?.trimmingCharacters(in: .whitespacesAndNewlines)
+            let trimmedSecret = fromSecret?.trimmingCharacters(in: .whitespacesAndNewlines)
+            if let trimmedSecure, !trimmedSecure.isEmpty {
+                secureKey = trimmedSecure
+            } else if let trimmedSecret, !trimmedSecret.isEmpty {
+                secureKey = trimmedSecret
+            } else {
+                secureKey = nil
+            }
+        }
+
+        func encode(to encoder: Encoder) throws {
+            var c = encoder.container(keyedBy: CodingKeys.self)
+            try c.encodeIfPresent(screenStatus, forKey: .screenStatus)
+            try c.encodeIfPresent(logoUrl, forKey: .logoUrl)
+            try c.encodeIfPresent(tickerMessage, forKey: .tickerMessage)
+            try c.encodeIfPresent(secureKey, forKey: .secureKey)
+        }
     }
 
     /// Outcome of a single heartbeat request (gate unlocks only on `.active`).
     enum SendResult {
         case active(HeartbeatResponseData?)
-        case inactive(HeartbeatResponseData?)
+        case deactivated(HeartbeatResponseData?)
         case requestFailed
     }
     
-    /// Heartbeat interval in seconds (20 minutes)
-    private let heartbeatInterval: TimeInterval = 20 * 60
+    /// Heartbeat interval in seconds (ticker/logo updates arrive on this cadence).
+    private let heartbeatInterval: TimeInterval = 1 * 60
     
     /// Timer for periodic heartbeat
     private var heartbeatTimer: Timer?
@@ -62,6 +103,8 @@ final class HeartbeatAPI {
     private var initialHeartbeatSucceeded = false
     /// Prevents concurrent duplicate initial heartbeats.
     private var isInitialHeartbeatInFlight = false
+    /// True after deactivation until an ACTIVE heartbeat — RootView may mount after the notification.
+    private(set) var isAwaitingActiveStatus = false
     
     /// Current playback info for heartbeat payload
     private var currentSequenceIndex: Int = 0
@@ -135,13 +178,16 @@ final class HeartbeatAPI {
             switch result {
             case .active:
                 markInitialHeartbeatSucceeded()
-            case .inactive(let data):
+            case .deactivated(let data):
                 applyHeartbeatOverlayConfig(from: data)
-                AppRootViewModel.clearActivation()
-                print("⏳ Heartbeat screenStatus INACTIVE — routing to registration/activation")
-                SentryService.shared.track(SentryAnalyticsEvent.initialHeartbeatFailed, attributes: ["reason": "inactive"])
-                SentryService.shared.breadcrumb(category: "heartbeat", message: "initial_inactive", data: [:])
-                NotificationCenter.default.post(name: .initialHeartbeatFailed, object: nil)
+                // Stay deactivated: keep credentials + cache, keep heartbeat, wait for ACTIVE.
+                print("⏳ Heartbeat screenStatus deactivated (API INACTIVE) — showing deactivated screen, waiting for ACTIVE")
+                isAwaitingActiveStatus = true
+                SentryService.shared.track(SentryAnalyticsEvent.initialHeartbeatFailed, attributes: ["reason": "deactivated"])
+                SentryService.shared.breadcrumb(category: "heartbeat", message: "initial_deactivated_waiting", data: [:])
+                NotificationCenter.default.post(name: .screenDidDeactivate, object: nil)
+                NotificationCenter.default.post(name: .initialHeartbeatSucceeded, object: nil)
+                startHeartbeat()
             case .requestFailed:
                 print("⏳ Initial heartbeat failed; routing to registration/activation")
                 SentryService.shared.track(SentryAnalyticsEvent.initialHeartbeatFailed, attributes: ["reason": "request_failed"])
@@ -159,6 +205,38 @@ final class HeartbeatAPI {
         NotificationCenter.default.post(name: .initialHeartbeatSucceeded, object: nil)
         startHeartbeat()
     }
+
+    /// Call after first-time activation succeeds (no launch gate heartbeat).
+    func markPlaybackSessionActive() {
+        initialHeartbeatSucceeded = true
+    }
+
+#if DEBUG
+    /// Manual test: simulate heartbeat `screenStatus == INACTIVE`.
+    func debugForceDeactivate() {
+        isAwaitingActiveStatus = true
+        print("🧪 DEBUG Force Deactivate")
+        NotificationCenter.default.post(name: .screenDidDeactivate, object: nil)
+    }
+
+    /// Manual test: simulate inactivation → re-register / re-login.
+    func debugForceInactivate() {
+        isAwaitingActiveStatus = false
+        print("🧪 DEBUG Force Inactivate")
+        NotificationCenter.default.post(name: .screenDidInactivate, object: nil)
+    }
+
+    /// Manual test: simulate heartbeat `screenStatus == ACTIVE` after deactivation.
+    func debugForceActive() {
+        guard isAwaitingActiveStatus else {
+            print("🧪 DEBUG Force ACTIVE ignored — not currently awaiting (force Deactivate first)")
+            return
+        }
+        isAwaitingActiveStatus = false
+        print("🧪 DEBUG Force ACTIVE (reactivation)")
+        NotificationCenter.default.post(name: .heartbeatScreenStatusActive, object: nil)
+    }
+#endif
     
     /// Get current network status
     private func getNetworkStatus() -> String {
@@ -241,7 +319,8 @@ final class HeartbeatAPI {
                     "data": [
                         "screenStatus": body?.screenStatus ?? "",
                         "logoUrl": body?.logoUrl ?? "",
-                        "tickerMessage": body?.tickerMessage ?? ""
+                        "tickerMessage": body?.tickerMessage ?? "",
+                        "secureKey": body?.secureKey ?? ""
                     ]
                 ]
                 if let jsonData = try? JSONSerialization.data(withJSONObject: responseForm),
@@ -254,26 +333,40 @@ final class HeartbeatAPI {
                 let screenStatus = body?.screenStatus?.trimmingCharacters(in: .whitespacesAndNewlines).uppercased() ?? ""
 
                 await MainActor.run {
+                    // Persist rotated secureKey/secret when server sends a new one.
+                    if let newKey = body?.secureKey {
+                        AppRootViewModel.updateSecureKey(newKey)
+                    }
                     applyHeartbeatOverlayConfig(from: body)
+                    // Always signal success so ticker can rotate even when API sends no ticker text.
+                    NotificationCenter.default.post(name: .heartbeatDidComplete, object: nil)
                 }
 
                 if screenStatus == "ACTIVE" {
+                    await MainActor.run {
+                        // Only notify UI when recovering from deactivation — not on every periodic ACTIVE heartbeat.
+                        let wasAwaitingReactivation = self.isAwaitingActiveStatus
+                        self.isAwaitingActiveStatus = false
+                        if wasAwaitingReactivation {
+                            print("💓 Heartbeat screenStatus ACTIVE — reactivating (was deactivated)")
+                            NotificationCenter.default.post(name: .heartbeatScreenStatusActive, object: nil)
+                        }
+                    }
                     return .active(body)
                 }
 
-                // Non-ACTIVE (INACTIVE or missing) — do not unlock the app.
+                // Deactivated: stay on deactivated UI, keep credentials/cache, keep waiting via heartbeat.
                 if screenStatus == "INACTIVE" {
                     await MainActor.run {
-                        // Mid-session periodic heartbeats also use this path.
-                        if initialHeartbeatSucceeded {
-                            NotificationCenter.default.post(name: .heartbeatScreenStatusInactive, object: nil)
-                        }
+                        self.isAwaitingActiveStatus = true
+                        print("💓 Heartbeat screenStatus deactivated (API INACTIVE) — notifying UI (no cache/credential clear)")
+                        NotificationCenter.default.post(name: .screenDidDeactivate, object: nil)
                     }
-                    return .inactive(body)
+                    return .deactivated(body)
                 }
 
                 print("⚠️ Heartbeat screenStatus '\(body?.screenStatus ?? "nil")' — not ACTIVE")
-                return .inactive(body)
+                return .deactivated(body)
             } else {
                 let raw = String(data: data, encoding: .utf8) ?? ""
                 print("⚠️ Heartbeat failed: HTTP \(httpResponse.statusCode) — \(raw)")
@@ -285,7 +378,9 @@ final class HeartbeatAPI {
         }
     }
 
-    /// Apply logo/ticker from heartbeat: non-empty updates, empty clears that item, nil leaves cache.
+    /// Apply logo/ticker from heartbeat at runtime.
+    /// - non-empty → show/update immediately
+    /// - blank or null → remove from UI; wait for a later heartbeat with a value
     @MainActor
     private func applyHeartbeatOverlayConfig(from data: HeartbeatResponseData?) {
         guard let data else { return }
@@ -293,15 +388,20 @@ final class HeartbeatAPI {
         let previousTicker = AppRootViewModel.getSavedTickerMessage()
         let previousLogo = AppRootViewModel.getSavedLogoUrl()
 
-        // Heartbeat `data` includes these fields: empty/null means remove from cache.
+        // Null or blank → clear. Non-empty → update. Next heartbeat can restore.
         AppRootViewModel.updateTickerMessage(data.tickerMessage ?? "")
         AppRootViewModel.updateLogoUrl(data.logoUrl ?? "")
 
-        let tickerChanged = AppRootViewModel.getSavedTickerMessage() != previousTicker
-        let logoChanged = AppRootViewModel.getSavedLogoUrl() != previousLogo
-        guard tickerChanged || logoChanged else { return }
+        let newTicker = AppRootViewModel.getSavedTickerMessage()
+        let newLogo = AppRootViewModel.getSavedLogoUrl()
+        let tickerChanged = newTicker != previousTicker
+        let logoChanged = newLogo != previousLogo
+        let hasLogoToReload = !(newLogo ?? "").isEmpty
+
+        // Notify on clear/update, and whenever a logo URL is present (re-fetch CDN bytes).
+        guard tickerChanged || logoChanged || hasLogoToReload else { return }
 
         NotificationCenter.default.post(name: .tickerUpdated, object: nil)
-        print("📢 Heartbeat overlay updated (tickerChanged=\(tickerChanged), logoChanged=\(logoChanged))")
+        print("📢 Heartbeat overlay updated (ticker=\(newTicker ?? "cleared"), logo=\(newLogo ?? "cleared"))")
     }
 }

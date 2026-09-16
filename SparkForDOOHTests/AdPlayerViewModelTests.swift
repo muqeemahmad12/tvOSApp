@@ -35,9 +35,7 @@ final class AdPlayerViewModelTests: XCTestCase {
             itemspeciality: nil,
             subcampaignid: nil,
             schedulestarttime: nil,
-            scheduleendtime: nil,
-            sequence: nil,
-            facilityid: nil
+            scheduleendtime: nil
         )
     }
 
@@ -53,9 +51,7 @@ final class AdPlayerViewModelTests: XCTestCase {
             itemspeciality: nil,
             subcampaignid: nil,
             schedulestarttime: nil,
-            scheduleendtime: nil,
-            sequence: nil,
-            facilityid: nil
+            scheduleendtime: nil
         )
     }
 

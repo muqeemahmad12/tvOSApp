@@ -103,6 +103,8 @@ private struct LandingGateView: View {
                     ActivationView {
                         showActivation = false
                         isReady = true
+                        // Same as post-gate unlock: mark session active so deactivation heartbeats pause playback.
+                        HeartbeatAPI.shared.markPlaybackSessionActive()
                         HeartbeatAPI.shared.startHeartbeat()
                     }
                 } else {

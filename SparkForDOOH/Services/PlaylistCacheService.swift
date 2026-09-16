@@ -70,5 +70,11 @@ final class PlaylistCacheService {
             return nil
         }
     }
+
+    /// Remove saved playlist JSON (e.g. on screen deactivation).
+    func clearCache() {
+        try? fileManager.removeItem(at: playlistFileURL)
+        print("🗑️ Playlist cache cleared")
+    }
 }
 

@@ -117,10 +117,11 @@ final class ActivationAndPlaylistDecodingTests: XCTestCase {
         let decoded = try JSONDecoder().decode(ItemSeqInfoResponse.self, from: Data(json.utf8))
         let playable = decoded.item1.displayableGroups()
         XCTAssertEqual(playable.count, 1)
-        // Keep null metadata when URL + assettype present; drop only missing URL.
-        XCTAssertEqual(playable.first?.ii.count, 2)
+        // Multi-item L-shape: keep null-URL slot for white placeholder.
+        XCTAssertEqual(playable.first?.ii.count, 3)
         XCTAssertEqual(playable.first?.ii.first?.itemid, "")
         XCTAssertTrue(playable.first?.ii.first?.hasMinimumPlayableFields ?? false)
+        XCTAssertFalse(playable.first?.ii[2].hasMinimumPlayableFields ?? true)
     }
 
     func testUnplayableThirdKeepsOtherPlayableItems() throws {
@@ -155,8 +156,10 @@ final class ActivationAndPlaylistDecodingTests: XCTestCase {
         let decoded = try JSONDecoder().decode(ItemSeqInfoResponse.self, from: Data(json.utf8))
         let playable = decoded.item1.displayableGroups()
         XCTAssertEqual(playable.count, 1)
-        XCTAssertEqual(playable.first?.ii.count, 2)
-        XCTAssertEqual(playable.first?.ii.map { $0.assettype.lowercased() }, ["video", "image"])
+        // L-shape: keep unplayable third slot so UI can show white in place.
+        XCTAssertEqual(playable.first?.ii.count, 3)
+        XCTAssertEqual(playable.first?.ii.map { $0.assettype.lowercased() }, ["video", "image", "image"])
+        XCTAssertFalse(playable.first?.ii[2].hasMinimumPlayableFields ?? true)
     }
 
     func testZipHtml5PackageIsNotPlayable() throws {
@@ -181,5 +184,84 @@ final class ActivationAndPlaylistDecodingTests: XCTestCase {
         let decoded = try JSONDecoder().decode(ItemSeqInfoResponse.self, from: Data(json.utf8))
         XCTAssertFalse(decoded.item1.first?.ii.first?.hasMinimumPlayableFields ?? true)
         XCTAssertTrue(decoded.item1.displayableGroups().isEmpty)
+    }
+
+    func testLShapeKeepsZipSlotAsPlaceholder() throws {
+        let json = """
+        {
+          "item1": [
+            {
+              "facilityid": "F1",
+              "sequence": 1,
+              "is_active": true,
+              "ii": [
+                {
+                  "itemid": "v1",
+                  "assettype": "video",
+                  "itemurl": "https://example.com/main.mp4"
+                },
+                {
+                  "itemid": "47",
+                  "assettype": "Image",
+                  "itemurl": "https://example.com/bottom.png"
+                },
+                {
+                  "itemid": "z1",
+                  "assettype": "Image",
+                  "itemurl": "https://d3gglspuvl1a31.cloudfront.net/content/670/20260525/content_1779688607886_html5_zip_file_prime_brand.zip"
+                }
+              ]
+            }
+          ]
+        }
+        """
+        let decoded = try JSONDecoder().decode(ItemSeqInfoResponse.self, from: Data(json.utf8))
+        let groups = decoded.item1.displayableGroups()
+        XCTAssertEqual(groups.count, 1)
+        XCTAssertEqual(groups.first?.ii.count, 3)
+        XCTAssertTrue(groups.first?.ii[0].hasMinimumPlayableFields ?? false)
+        XCTAssertTrue(groups.first?.ii[1].hasMinimumPlayableFields ?? false)
+        XCTAssertFalse(groups.first?.ii[2].hasMinimumPlayableFields ?? true)
+        XCTAssertEqual(groups.first?.lShapeCompanions.count, 2)
+        XCTAssertFalse(groups.first?.lShapeCompanions[1].hasMinimumPlayableFields ?? true)
+    }
+
+    func testLShapeZipTypedAsVideoDoesNotReuseBottomImage() throws {
+        let json = """
+        {
+          "item1": [
+            {
+              "facilityid": "F1",
+              "sequence": 1,
+              "is_active": true,
+              "ii": [
+                {
+                  "itemid": "v1",
+                  "assettype": "video",
+                  "itemurl": "https://example.com/main.mp4"
+                },
+                {
+                  "itemid": "47",
+                  "assettype": "Image",
+                  "itemurl": "https://example.com/bottom.png"
+                },
+                {
+                  "itemid": "z1",
+                  "assettype": "video",
+                  "itemurl": "https://d3gglspuvl1a31.cloudfront.net/content/670/20260525/content_1779688607886_html5_zip_file_prime_brand.zip"
+                }
+              ]
+            }
+          ]
+        }
+        """
+        let decoded = try JSONDecoder().decode(ItemSeqInfoResponse.self, from: Data(json.utf8))
+        let group = try XCTUnwrap(decoded.item1.displayableGroups().first)
+        XCTAssertEqual(group.ii.count, 3)
+        let companions = group.lShapeCompanions
+        XCTAssertEqual(companions.count, 2, "Zip video must stay as its own companion slot")
+        XCTAssertTrue(companions[0].hasMinimumPlayableFields)
+        XCTAssertFalse(companions[1].hasMinimumPlayableFields)
+        XCTAssertNotEqual(companions[0].itemurl, companions[1].itemurl)
     }
 }

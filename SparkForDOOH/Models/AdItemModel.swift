@@ -285,18 +285,46 @@ extension AdItemModel {
             && !itemurl.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
             && hasPlayableMediaExtension
     }
+
+    var isVideoType: Bool { assettype.lowercased() == "video" }
+    var isImageType: Bool { assettype.lowercased() == "image" }
+}
+
+extension AdSequenceGroup {
+    /// Index of the main L-shape creative: playable video, else any video slot.
+    var lShapeMainIndex: Int? {
+        if let playable = ii.firstIndex(where: { $0.isVideoType && $0.hasMinimumPlayableFields }) {
+            return playable
+        }
+        return ii.firstIndex(where: { $0.isVideoType })
+    }
+
+    /// Items that occupy bottom/right (everything except the main video slot), in API order.
+    var lShapeCompanions: [AdItemModel] {
+        guard let mainIdx = lShapeMainIndex else { return ii }
+        return ii.enumerated().compactMap { idx, ad in idx == mainIdx ? nil : ad }
+    }
 }
 
 extension Array where Element == AdSequenceGroup {
     /// Keep groups that still have at least one playable creative.
     /// Required: `assettype` image|video + non-empty `itemurl`. Everything else may be null.
-    /// Unplayable slots are dropped individually; remaining playable items still play.
+    ///
+    /// Single-item groups: unplayable items are dropped.
+    /// Multi-item (L-shape) groups: unplayable slots are kept so the UI can show white
+    /// in that place (e.g. HTML5 `.zip`) while other playable slots still play.
     func displayableGroups() -> [AdSequenceGroup] {
         compactMap { group in
-            let kept = group.ii.filter { $0.hasMinimumPlayableFields }
-            guard !kept.isEmpty else { return nil }
+            let playable = group.ii.filter { $0.hasMinimumPlayableFields }
+            guard !playable.isEmpty else { return nil }
+
+            if group.ii.count >= 2 {
+                // Preserve slot order/count for L-shape white placeholders.
+                return group
+            }
+
             var copy = group
-            copy.ii = kept
+            copy.ii = playable
             return copy
         }
     }

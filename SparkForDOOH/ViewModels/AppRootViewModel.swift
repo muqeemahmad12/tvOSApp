@@ -16,10 +16,17 @@ final class AppRootViewModel: ObservableObject {
     }
 
     @Published var phase: Phase
-    
-    /// When true, ActivationView should show Activation Failed (set when heartbeat returns INACTIVE while on player).
-    @Published var showActivationFailedFromHeartbeat = false
-    
+
+    /// True while heartbeat reports deactivated (API INACTIVE) — show Screen Deactivated and wait for ACTIVE.
+    /// Credentials and playback cache are kept.
+    @Published var isScreenDeactivated = false
+
+    /// True while Screen Inactivated is showing before re-registration.
+    @Published var isScreenInactivated = false
+
+    /// Bumps when forcing a fresh activation flow so `ActivationView` remounts.
+    @Published var activationSessionID = UUID()
+
     // Keys for UserDefaults persistence
     private static let secureKeyKey = "com.doceree.sparkfordooh.secureKey"
     private static let deviceCodeKey = "com.doceree.sparkfordooh.deviceCode"
@@ -67,16 +74,16 @@ final class AppRootViewModel: ObservableObject {
         SentryService.shared.breadcrumb(category: "activation", message: "credentials_saved", data: [:])
     }
 
-    /// Persist the latest `secureKey` from the activation poll API.
+    /// Persist the latest `secureKey` (from activation poll or heartbeat rotation).
     static func updateSecureKey(_ secureKey: String?) {
         let trimmed = secureKey?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
         guard !trimmed.isEmpty else { return }
         let previous = UserDefaults.standard.string(forKey: secureKeyKey)
         UserDefaults.standard.set(trimmed, forKey: secureKeyKey)
         if previous != trimmed {
-            print("🔑 secureKey updated from poll (was \(previous ?? "nil"), now \(trimmed))")
+            print("🔑 secureKey updated (was \(previous ?? "nil"), now \(trimmed))")
         } else {
-            print("🔑 secureKey from poll unchanged")
+            print("🔑 secureKey unchanged")
         }
     }
     
@@ -101,12 +108,12 @@ final class AppRootViewModel: ObservableObject {
     }
     
     /// Update ticker from API:
-    /// - non-empty → cache it
+    /// - non-empty → cache it (newlines collapsed to spaces — always one line)
     /// - empty string → remove from cache (facility no longer wants a ticker)
     /// - nil / omitted → leave cache unchanged
     static func updateTickerMessage(_ message: String?) {
         guard let message else { return }
-        let trimmed = message.trimmingCharacters(in: .whitespacesAndNewlines)
+        let trimmed = Self.singleLineTicker(message)
         if trimmed.isEmpty {
             if UserDefaults.standard.object(forKey: tickerMessageKey) != nil {
                 UserDefaults.standard.removeObject(forKey: tickerMessageKey)
@@ -119,14 +126,27 @@ final class AppRootViewModel: ObservableObject {
         UserDefaults.standard.set(trimmed, forKey: tickerMessageKey)
         print("📢 Ticker updated")
     }
+
+    /// Collapse `\r` / `\n` (and escaped variants) so ticker is always one scrolling line.
+    static func singleLineTicker(_ message: String) -> String {
+        message
+            .replacingOccurrences(of: "\r\n", with: " ")
+            .replacingOccurrences(of: "\n", with: " ")
+            .replacingOccurrences(of: "\r", with: " ")
+            .replacingOccurrences(of: "\\r\\n", with: " ")
+            .replacingOccurrences(of: "\\n", with: " ")
+            .replacingOccurrences(of: "\\r", with: " ")
+            .replacingOccurrences(of: #"\s+"#, with: " ", options: .regularExpression)
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+    }
     
     /// Update logo from API:
-    /// - non-empty → cache it
+    /// - non-empty → cache it (JSON `\/` escapes normalized)
     /// - empty string → remove from cache (facility no longer wants a logo)
     /// - nil / omitted → leave cache unchanged
     static func updateLogoUrl(_ url: String?) {
         guard let url else { return }
-        let trimmed = url.trimmingCharacters(in: .whitespacesAndNewlines)
+        let trimmed = Self.normalizedLogoURLString(url)
         if trimmed.isEmpty {
             if UserDefaults.standard.object(forKey: logoUrlKey) != nil {
                 UserDefaults.standard.removeObject(forKey: logoUrlKey)
@@ -137,31 +157,65 @@ final class AppRootViewModel: ObservableObject {
         let previous = UserDefaults.standard.string(forKey: logoUrlKey)
         guard previous != trimmed else { return }
         UserDefaults.standard.set(trimmed, forKey: logoUrlKey)
-        print("🖼️ Logo URL updated")
+        print("🖼️ Logo URL updated: \(trimmed)")
     }
-    
-    /// Called when heartbeat response has screenStatus INACTIVE. If we're on player, clear activation and switch to activation + show failed screen; if already on registration, do nothing.
-    func handleHeartbeatScreenStatusInactive() {
-        guard phase == .playing else {
-            print("💓 Heartbeat INACTIVE ignored (already on activation, phase=\(phase))")
-            return
+
+    /// Normalize heartbeat/activation logo URLs (`https:\/\/...` → `https://...`).
+    static func normalizedLogoURLString(_ raw: String) -> String {
+        var s = raw.trimmingCharacters(in: .whitespacesAndNewlines)
+        if (s.hasPrefix("\"") && s.hasSuffix("\"")) || (s.hasPrefix("'") && s.hasSuffix("'")) {
+            s = String(s.dropFirst().dropLast())
         }
-        print("💓 Heartbeat INACTIVE: clearing activation, switching to Activation Failed")
-        Self.clearActivation()
-        showActivationFailedFromHeartbeat = true
-        phase = .activating
+        s = s.replacingOccurrences(of: "\\/", with: "/")
+        return s.trimmingCharacters(in: .whitespacesAndNewlines)
     }
     
-    /// Clear activation credentials (for re-activation). Ticker message and logo are never cleared.
-    static func clearActivation() {
+    /// Handle screen deactivation (API screenStatus INACTIVE) — show Screen Deactivated; keep credentials, playlist cache, and heartbeat.
+    func handleScreenDeactivation() {
+        guard !isScreenDeactivated else { return }
+        guard !isScreenInactivated else { return }
+        print("💓 Heartbeat deactivated — Screen Deactivated (cache kept, waiting for ACTIVE)")
+        isScreenDeactivated = true
+        HeartbeatAPI.shared.startHeartbeat()
+    }
+
+    /// Heartbeat ACTIVE after deactivation — dismiss overlay; caller resumes ads and hits quest once.
+    func handleScreenReactivation() {
+        guard isScreenDeactivated else { return }
+        print("💓 Heartbeat ACTIVE — leaving Screen Deactivated, resume playlist + one quest fetch")
+        isScreenDeactivated = false
+        if phase == .activating {
+            phase = .playing
+        }
+    }
+
+    /// Screen inactivated — stop on Screen Inactivated, clear credentials/cache.
+    /// Re-registration happens after app restart (no secureKey → activation).
+    func handleScreenInactivation() {
+        guard !isScreenInactivated else { return }
+        print("🔒 Screen Inactivated — credentials cleared; stay until re-register / restart")
+        isScreenDeactivated = false
+        isScreenInactivated = true
+        Self.clearActivationCredentials()
+        Self.clearPlaybackCaches()
+        HeartbeatAPI.shared.stopHeartbeat()
+    }
+
+    /// Clear secureKey + deviceCode so the device can re-register / re-login.
+    static func clearActivationCredentials() {
         UserDefaults.standard.removeObject(forKey: secureKeyKey)
         UserDefaults.standard.removeObject(forKey: deviceCodeKey)
-        // Intentionally keep tickerMessageKey + logoUrlKey until a later request updates them.
-        print("🗑️ Activation credentials cleared (ticker/logo cache kept)")
+        print("🗑️ Activation credentials cleared (re-register)")
         SentryService.shared.clearUser()
         SentryService.shared.track(SentryAnalyticsEvent.activationCleared)
-        SentryService.shared.breadcrumb(category: "activation", message: "credentials_cleared", data: [:])
+        SentryService.shared.breadcrumb(category: "activation", message: "credentials_cleared_for_reregister", data: [:])
+    }
+
+    /// Kept for compatibility; deactivation no longer clears playback caches.
+    static func clearPlaybackCaches() {
+        PlaylistCacheService.shared.clearCache()
+        FileManagerHelper.shared.clearAdsCache()
+        NotificationCenter.default.post(name: .playbackCachesClearedOnDeactivation, object: nil)
+        print("🗑️ Playback caches cleared (playlist + AdsCache)")
     }
 }
-
-

@@ -65,4 +65,19 @@ final class FileManagerHelper {
             print("❌ Error clearing temp: \(error.localizedDescription)")
         }
     }
+
+    /// Wipe downloaded creatives (AdsCache). Used on screen deactivation.
+    func clearAdsCache() {
+        guard let caches = fileManager.urls(for: .cachesDirectory, in: .userDomainMask).first else { return }
+        let adsCache = caches.appendingPathComponent("AdsCache")
+        do {
+            if fileManager.fileExists(atPath: adsCache.path) {
+                try fileManager.removeItem(at: adsCache)
+            }
+            try fileManager.createDirectory(at: adsCache, withIntermediateDirectories: true)
+            print("🗑️ AdsCache cleared")
+        } catch {
+            print("❌ Failed to clear AdsCache: \(error.localizedDescription)")
+        }
+    }
 }

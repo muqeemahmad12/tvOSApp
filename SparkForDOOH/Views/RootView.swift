@@ -19,24 +19,40 @@ struct RootView: View {
             Group {
                 switch appVM.phase {
                 case .activating:
-                    ActivationView(showActivationFailedFromHeartbeat: $appVM.showActivationFailedFromHeartbeat) {
-                        // When activation completes, start fetching ads and switch to player
+                    ActivationView {
                         adListVM.fetchAds(screenId: AppConfig.current.screenId, reqNum: 1)
                         appVM.phase = .playing
                     }
+                    .id(appVM.activationSessionID)
                 case .playing:
                     AdPlayerView(listVM: adListVM)
                 }
             }
+
+            // Deactivated: stay here until heartbeat returns ACTIVE (cache kept).
+            if appVM.isScreenDeactivated {
+                ScreenDeactivatedView()
+                    .transition(.opacity)
+                    .zIndex(10)
+            }
+
+            // Inactivated: brief UI, then clear credentials and re-register.
+            if appVM.isScreenInactivated {
+                ScreenInactivatedView()
+                    .transition(.opacity)
+                    .zIndex(11)
+            }
             
             // Offline with nothing to play (activation or player).
-            if !networkMonitor.isConnected && adListVM.groupedAds.isEmpty {
+            if !networkMonitor.isConnected && adListVM.groupedAds.isEmpty && !appVM.isScreenDeactivated && !appVM.isScreenInactivated {
                 ConnectionLostView()
                     .transition(.opacity)
             }
 
             // Show waiting screen when online but no playlist/content is assigned yet.
             if appVM.phase == .playing,
+               !appVM.isScreenDeactivated,
+               !appVM.isScreenInactivated,
                networkMonitor.isConnected,
                adListVM.groupedAds.isEmpty,
                adListVM.isLoading == false,
@@ -46,7 +62,10 @@ struct RootView: View {
             }
         }
         .onAppear {
-            if appVM.phase == .playing {
+            if HeartbeatAPI.shared.isAwaitingActiveStatus {
+                appVM.handleScreenDeactivation()
+            }
+            if appVM.phase == .playing, !appVM.isScreenDeactivated, !appVM.isScreenInactivated {
                 SentryService.shared.track(
                     SentryAnalyticsEvent.screenPlayingPhase,
                     attributes: ["screen_id": AppConfig.current.screenId]
@@ -72,12 +91,11 @@ struct RootView: View {
         }
         .onChange(of: networkMonitor.isConnected) { isConnected in
             guard isConnected else { return }
-            // When connectivity returns, resume normal flow:
-            // - If already playing, refresh playlist to ensure up-to-date content.
-            // - If still gating activation, kick the initial heartbeat again (it self-retries).
             switch appVM.phase {
             case .playing:
-                adListVM.fetchAds(screenId: AppConfig.current.screenId, reqNum: 1)
+                if !appVM.isScreenDeactivated && !appVM.isScreenInactivated {
+                    adListVM.fetchAds(screenId: AppConfig.current.screenId, reqNum: 1)
+                }
             case .activating:
                 HeartbeatAPI.shared.resetInitialHeartbeatGate()
                 HeartbeatAPI.shared.startInitialHeartbeat()
@@ -88,10 +106,17 @@ struct RootView: View {
                 NetworkMonitor.shared.refreshConnectivity()
             }
         }
-        .onReceive(NotificationCenter.default.publisher(for: .heartbeatScreenStatusInactive)) { _ in
-            appVM.handleHeartbeatScreenStatusInactive()
+        .onReceive(NotificationCenter.default.publisher(for: .screenDidDeactivate)) { _ in
+            appVM.handleScreenDeactivation()
+        }
+        .onReceive(NotificationCenter.default.publisher(for: .screenDidInactivate)) { _ in
+            appVM.handleScreenInactivation()
+        }
+        .onReceive(NotificationCenter.default.publisher(for: .heartbeatScreenStatusActive)) { _ in
+            // Only fired when recovering from deactivation (see HeartbeatAPI).
+            appVM.handleScreenReactivation()
+            print("📥 Re-activated — resume playlist + one quest fetch")
+            adListVM.fetchAds(screenId: AppConfig.current.screenId, reqNum: 1)
         }
     }
 }
-
-

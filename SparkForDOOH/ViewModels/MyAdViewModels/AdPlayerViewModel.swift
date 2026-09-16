@@ -12,6 +12,8 @@ import SwiftUI
 extension Notification.Name {
     /// Posted when periodic quest sync applies a non-empty playlist to the player.
     static let questPlaylistApplied = Notification.Name("com.doceree.sparkfordooh.questPlaylistApplied")
+    /// Posted when playback caches are wiped (not used on deactivation anymore; kept for manual/other clears).
+    static let playbackCachesClearedOnDeactivation = Notification.Name("com.doceree.sparkfordooh.playbackCachesClearedOnDeactivation")
 }
 
 /// Orchestrates ad playback: preloads assets, manages the current group,
@@ -229,6 +231,44 @@ extension AdPlayerViewModel {
             print("▶️ Resumed playback after app became active")
         }
     }
+
+    /// Pause playback on deactivation — keep playlist + disk/memory caches for resume.
+    func pauseForDeactivation() {
+        timer?.invalidate()
+        timer = nil
+        activePlayer?.pause()
+        isPlayerReadyForOverlay = false
+        print("⏸️ Playback paused for deactivation (cache kept)")
+    }
+
+    /// Resume existing playlist after ACTIVE; quest sync may update in the background.
+    func resumeAfterReactivation() {
+        isWaitingForPlayableContent = false
+        isPlayerReadyForOverlay = true
+        if activePlayer != nil, currentGroup != nil {
+            activePlayer?.play()
+            // Restart L-shape / image timers if needed for the current group.
+            if let group = currentGroup {
+                let images = group.lShapeCompanions
+                let hasVideo = group.ii.contains { $0.isVideoType && $0.hasMinimumPlayableFields }
+                if hasVideo, !images.isEmpty {
+                    showsLShapeCompanions = true
+                    scheduleLShapeCollapseIfNeeded(images: images)
+                } else if !hasVideo {
+                    startGroupTimer()
+                }
+            }
+            print("▶️ Resumed existing playlist after re-activation")
+            return
+        }
+        if !groupedAds.isEmpty {
+            currentIndex = min(max(currentIndex, 0), groupedAds.count - 1)
+            playCurrentGroup()
+            print("▶️ Restarted playlist group after re-activation")
+            return
+        }
+        print("⚠️ No in-memory playlist after re-activation — waiting for quest/cache")
+    }
 }
 
 // MARK: - Preloading & Assets
@@ -245,7 +285,9 @@ private extension AdPlayerViewModel {
         var completed = 0.0
 
         for ad in allAds {
-            if let url = await downloadAsset(ad.itemurl) {
+            // Skip unplayable L-shape placeholders (zip/HTML5/etc.) — UI shows white.
+            if ad.hasMinimumPlayableFields,
+               let url = await downloadAsset(ad.itemurl) {
                 localURLs[ad.itemurl] = url
             }
             completed += 1
@@ -318,7 +360,9 @@ private extension AdPlayerViewModel {
 
     func cleanupObsoleteFiles(keeping groups: [AdSequenceGroup]) {
         let keepFiles = Set(groups.flatMap { group in
-            group.ii.compactMap { URL(string: $0.itemurl)?.lastPathComponent.lowercased() }
+            group.ii
+                .filter { $0.hasMinimumPlayableFields }
+                .compactMap { URL(string: $0.itemurl)?.lastPathComponent.lowercased() }
         })
 
         var removed = 0
@@ -338,7 +382,9 @@ private extension AdPlayerViewModel {
     /// After a successful playable quest download: storage must match ONLY this playlist
     /// (images-only, video-only, or mixed). Unmatched items are removed from disk + memory.
     func retainOnlyCurrentPlaylist(_ groups: [AdSequenceGroup]) {
-        let keepURLs = Set(groups.flatMap { $0.ii.map(\.itemurl) })
+        let keepURLs = Set(
+            groups.flatMap { $0.ii.filter(\.hasMinimumPlayableFields).map(\.itemurl) }
+        )
 
         // Memory — local URL map
         localURLs = localURLs.filter { keepURLs.contains($0.key) }
@@ -364,7 +410,7 @@ private extension AdPlayerViewModel {
         let newItems = computeDiff(old: oldGroups, new: filteredGroups)
         print("🆕 Found \(newItems.count) NEW items to download")
 
-        for ad in newItems {
+        for ad in newItems where ad.hasMinimumPlayableFields {
             if let url = await downloadAsset(ad.itemurl) {
                 localURLs[ad.itemurl] = url
             }
@@ -387,7 +433,8 @@ private extension AdPlayerViewModel {
         groups.displayableGroups()
     }
 
-    /// Keep only displayable image/video items; drop Banner and other types; drop invalid videos.
+    /// Keep playable image/video items. In multi-item (L-shape) groups, also keep
+    /// unplayable slots so the UI can show white in place (zip/HTML5/etc.).
     func filterUnplayableAds(newAds: [AdSequenceGroup]) async -> [AdSequenceGroup] {
         print("🔎 Validating displayable creatives before starting playback…")
         
@@ -395,22 +442,35 @@ private extension AdPlayerViewModel {
 
         for group in newAds.displayableGroups() {
             var keptAds: [AdItemModel] = []
+            let isLShape = group.ii.count >= 2
 
             for ad in group.ii {
+                if !ad.hasMinimumPlayableFields {
+                    if isLShape {
+                        print("⬜ Keeping unplayable L-shape slot as white placeholder:", ad.itemurl)
+                        keptAds.append(ad)
+                    }
+                    continue
+                }
                 let type = ad.assettype.lowercased()
                 if type == "image" {
                     keptAds.append(ad)
                     continue
                 }
-                // Only video remains after displayableGroups()
                 guard URL(string: ad.itemurl) != nil || localURLs[ad.itemurl] != nil else {
-                    print("❌ Removing (invalid URL):", ad.itemurl)
+                    if isLShape {
+                        print("⬜ Invalid video URL — white placeholder in L-shape:", ad.itemurl)
+                        keptAds.append(ad)
+                    } else {
+                        print("❌ Removing (invalid URL):", ad.itemurl)
+                    }
                     continue
                 }
                 keptAds.append(ad)
             }
 
-            if !keptAds.isEmpty {
+            let hasPlayable = keptAds.contains(where: { $0.hasMinimumPlayableFields })
+            if hasPlayable {
                 var g = group
                 g.ii = keptAds
                 newGroups.append(g)
@@ -471,55 +531,80 @@ private extension AdPlayerViewModel {
         )
 
         let ads = group.ii
-        let video = ads.first { $0.assettype.lowercased() == "video" }
-        let images = ads.filter { $0.assettype.lowercased() == "image" }
+        let companions = group.lShapeCompanions
+        let video = ads.first { $0.isVideoType && $0.hasMinimumPlayableFields }
+        let hasUnplayableVideoSlot = ads.contains { $0.isVideoType && !$0.hasMinimumPlayableFields }
 
-        // Play video whenever one exists in the group (not only when it is first).
+        // Play video whenever a playable one exists.
         // L-shape companions show first; after their duration the video scales fullscreen.
-        // If main video is corrupt/invalid → skip the whole group (do not scale L-shape images).
+        // Unplayable companions (incl. zip typed as video) stay as white — never reuse another image.
         if let video {
             trackImpression(for: video)
-            showsLShapeCompanions = !images.isEmpty
-            for ad in images {
+            showsLShapeCompanions = !companions.isEmpty
+            for ad in companions where ad.hasMinimumPlayableFields {
                 trackImpression(for: ad)
             }
             Task {
-                for ad in images {
+                for ad in companions where ad.hasMinimumPlayableFields {
                     await loadImage(for: ad)
                 }
                 guard currentGroup?.sequence == group.sequence else { return }
-                // Drop only companions that failed to load; keep any that succeeded.
-                let loaded = images.filter { self.imageCache[$0.itemurl] != nil }
-                if loaded.count != images.count {
-                    print("📐 Some L-shape companions failed to load — showing \(loaded.count) playable image(s)")
+                let failed = companions.filter {
+                    $0.hasMinimumPlayableFields && self.imageCache[$0.itemurl] == nil
                 }
-                if loaded.isEmpty && !images.isEmpty {
-                    self.timer?.invalidate()
-                    self.timer = nil
-                    self.showsLShapeCompanions = false
+                if !failed.isEmpty {
+                    print("⬜ \(failed.count) L-shape companion(s) failed — showing white in place")
                 }
             }
             playVideo(video)
-            if !images.isEmpty {
-                scheduleLShapeCollapseIfNeeded(images: images)
+            if !companions.isEmpty {
+                scheduleLShapeCollapseIfNeeded(images: companions)
             }
             return
         }
 
-        // Image-only: load first; if main (lead) image is corrupt, skip group — never stretch companions.
+        // Unplayable main video (e.g. zip) + companions → white main, keep L-shape slots.
+        if hasUnplayableVideoSlot && !companions.isEmpty {
+            print("⬜ Unplayable main video — white in main slot, keeping L-shape companions")
+            showsLShapeCompanions = true
+            activePlayer = nil
+            for ad in companions where ad.hasMinimumPlayableFields {
+                trackImpression(for: ad)
+            }
+            Task {
+                for ad in companions where ad.hasMinimumPlayableFields {
+                    await loadImage(for: ad)
+                }
+                guard currentGroup?.sequence == group.sequence else { return }
+                startGroupTimer()
+            }
+            return
+        }
+
+        // Image-only: load first; if main (lead) image is corrupt/unplayable, white main (multi)
+        // or skip group (single) — never stretch companions into the main slot.
         showsLShapeCompanions = false
-        for ad in images {
+        let images = companions
+        for ad in images where ad.hasMinimumPlayableFields {
             trackImpression(for: ad)
         }
         Task {
-            for ad in images {
+            for ad in images where ad.hasMinimumPlayableFields {
                 await loadImage(for: ad)
             }
             guard currentGroup?.sequence == group.sequence else { return }
-            if let main = images.first, imageCache[main.itemurl] == nil {
-                print("⏭️ Main image corrupt/unreadable — skipping group \(group.sequence) (no L-shape scale)")
-                skipCorruptMainContent()
-                return
+            if let main = images.first {
+                let mainPlayable = main.hasMinimumPlayableFields && imageCache[main.itemurl] != nil
+                if !mainPlayable {
+                    if images.count >= 2 {
+                        print("⬜ Main image unplayable — white in place (keeping other slots)")
+                        startGroupTimer()
+                        return
+                    }
+                    print("⏭️ Main image corrupt/unreadable — skipping group \(group.sequence)")
+                    skipCorruptMainContent()
+                    return
+                }
             }
             startGroupTimer()
         }

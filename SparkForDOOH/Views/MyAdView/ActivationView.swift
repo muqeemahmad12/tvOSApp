@@ -1,5 +1,5 @@
 //
-//  ActivationScreenView.swift
+//  ActivationView.swift
 //  SparkForDOOH
 //
 //  Created by Muqeem Ahmad on 24/11/25.
@@ -9,23 +9,20 @@ import SwiftUI
 import UIKit
 
 struct ActivationView: View {
-    /// When true (e.g. from heartbeat INACTIVE while on player), show Activation Failed without polling.
-    @Binding var showActivationFailedFromHeartbeat: Bool
     /// Called when activation is considered complete (e.g. backend marks device as ACTIVE).
     var onActivated: () -> Void = {}
 
     @StateObject private var vm = ActivationViewModel()
     @ObservedObject private var networkMonitor = NetworkMonitor.shared
 
-    init(showActivationFailedFromHeartbeat: Binding<Bool> = .constant(false), onActivated: @escaping () -> Void = {}) {
-        self._showActivationFailedFromHeartbeat = showActivationFailedFromHeartbeat
+    init(onActivated: @escaping () -> Void = {}) {
         self.onActivated = onActivated
     }
 
     var body: some View {
         ZStack {
-            if vm.isActivationFailed {
-                ActivationFailedView()
+            if vm.isScreenInactivated {
+                ScreenInactivatedView()
             } else {
                 Image("registration_bg")
                     .resizable()
@@ -61,35 +58,10 @@ struct ActivationView: View {
             print("🔒 Idle timer disabled during activation")
             SentryService.shared.track(
                 SentryAnalyticsEvent.screenActivationFlow,
-                attributes: [
-                    "heartbeat_failure_pending": showActivationFailedFromHeartbeat ? "true" : "false"
-                ]
+                attributes: [:]
             )
             SentryService.shared.breadcrumb(category: "lifecycle", message: "activation_flow_visible", data: [:])
-            if showActivationFailedFromHeartbeat {
-                vm.isActivationFailed = true
-                showActivationFailedFromHeartbeat = false
-                DispatchQueue.main.asyncAfter(deadline: .now() + 10) {
-                    vm.isActivationFailed = false
-                    vm.activateDevice()
-                    print("🔒 After 10s: showing registration screen with new code")
-                }
-                print("🔒 Showing Activation Failed (from heartbeat, onAppear)")
-            } else {
-                vm.activateDevice()
-            }
-        }
-        .onChange(of: showActivationFailedFromHeartbeat) { newValue in
-            if newValue {
-                vm.isActivationFailed = true
-                showActivationFailedFromHeartbeat = false
-                DispatchQueue.main.asyncAfter(deadline: .now() + 10) {
-                    vm.isActivationFailed = false
-                    vm.activateDevice()
-                    print("🔒 After 10s: showing registration screen with new code")
-                }
-                print("🔒 Showing Activation Failed (from heartbeat, onChange)")
-            }
+            vm.activateDevice()
         }
         .onChange(of: vm.isActivated) { activated in
             if activated {
@@ -98,7 +70,7 @@ struct ActivationView: View {
             }
         }
         .onChange(of: networkMonitor.isConnected) { connected in
-            if connected && !vm.isActivated && !vm.isLoading {
+            if connected && !vm.isActivated && !vm.isLoading && !vm.isScreenInactivated {
                 print("🌐 Network restored during activation - retrying activation/poll")
                 vm.activateDevice()
             }
@@ -252,5 +224,3 @@ private struct ActivationFooter: View {
             .padding(.bottom, 0)
     }
 }
-
-

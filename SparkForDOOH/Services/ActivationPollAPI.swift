@@ -73,10 +73,10 @@ final class ActivationPollAPI {
                 return result
             }
             if status == "INACTIVE" {
-                throw AppError.activationInactive
+                throw AppError.screenDeactivated
             }
             } catch {
-                if let appErr = error as? AppError, case .activationInactive = appErr {
+                if let appErr = error as? AppError, case .screenDeactivated = appErr {
                     throw appErr
                 }
                 print("⚠️ Polling attempt \(attempt) failed: \(error)")
