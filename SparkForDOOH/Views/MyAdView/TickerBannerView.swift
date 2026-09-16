@@ -167,7 +167,7 @@ final class TickerMarqueeEngine: ObservableObject {
     private let font = UIFont.systemFont(ofSize: 28, weight: .medium)
 
     // MARK: TEMP testing — remove when API ticker is reliable
-    private let hardcodedRotationEnabled = true
+    private let hardcodedRotationEnabled = false
     private let hardcodedMessages = [
         "Lavender Lane - Interview",
         "Built only for children: from emergency care to specialty clinics, our teams deliver compassionate treatment around the clock — thank you for trusting us with your family."
