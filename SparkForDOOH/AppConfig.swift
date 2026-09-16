@@ -28,7 +28,7 @@ struct AppConfig {
         sentryDSN: String? = nil,
         apiKey: String? = nil,
         adsCacheMaxBytes: UInt64? = nil,
-        playlistRepeatInterval: TimeInterval = 15 * 60
+        playlistRepeatInterval: TimeInterval = 3 * 60
     ) {
         self.drsBaseURL = drsBaseURL
             ?? AppConfig.urlFromInfoPlist(key: "DRS_BASE_URL")

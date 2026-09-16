@@ -380,7 +380,8 @@ final class HeartbeatAPI {
 
     /// Apply logo/ticker from heartbeat at runtime.
     /// - non-empty → show/update immediately
-    /// - blank or null → remove from UI; wait for a later heartbeat with a value
+    /// - explicit empty string → clear
+    /// - null / omitted → leave cache unchanged (so periodic heartbeats don't wipe the ticker)
     @MainActor
     private func applyHeartbeatOverlayConfig(from data: HeartbeatResponseData?) {
         guard let data else { return }
@@ -388,9 +389,12 @@ final class HeartbeatAPI {
         let previousTicker = AppRootViewModel.getSavedTickerMessage()
         let previousLogo = AppRootViewModel.getSavedLogoUrl()
 
-        // Null or blank → clear. Non-empty → update. Next heartbeat can restore.
-        AppRootViewModel.updateTickerMessage(data.tickerMessage ?? "")
-        AppRootViewModel.updateLogoUrl(data.logoUrl ?? "")
+        if let ticker = data.tickerMessage {
+            AppRootViewModel.updateTickerMessage(ticker)
+        }
+        if let logo = data.logoUrl {
+            AppRootViewModel.updateLogoUrl(logo)
+        }
 
         let newTicker = AppRootViewModel.getSavedTickerMessage()
         let newLogo = AppRootViewModel.getSavedLogoUrl()
@@ -398,10 +402,9 @@ final class HeartbeatAPI {
         let logoChanged = newLogo != previousLogo
         let hasLogoToReload = !(newLogo ?? "").isEmpty
 
-        // Notify on clear/update, and whenever a logo URL is present (re-fetch CDN bytes).
         guard tickerChanged || logoChanged || hasLogoToReload else { return }
 
         NotificationCenter.default.post(name: .tickerUpdated, object: nil)
-        print("📢 Heartbeat overlay updated (ticker=\(newTicker ?? "cleared"), logo=\(newLogo ?? "cleared"))")
+        print("📢 Heartbeat overlay updated (ticker=\(newTicker ?? "unchanged/cleared"), logo=\(newLogo ?? "unchanged/cleared"))")
     }
 }

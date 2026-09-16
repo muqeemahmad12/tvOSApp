@@ -114,7 +114,7 @@ struct AdItemModel: Codable, Identifiable, Equatable {
         self.itemid = itemid
         self.assettype = assettype
         self.assetcat = assetcat
-        self.itemurl = itemurl
+        self.itemurl = Self.normalizedMediaURLString(itemurl)
         self.itemsize = itemsize
         self.duration = duration
         self.isFlex = isFlex
@@ -131,7 +131,7 @@ struct AdItemModel: Codable, Identifiable, Equatable {
         itemid = JSONNullTolerant.optionalString(container, .itemid) ?? ""
         assettype = JSONNullTolerant.optionalString(container, .assettype) ?? ""
         assetcat = JSONNullTolerant.optionalString(container, .assetcat)
-        itemurl = JSONNullTolerant.optionalString(container, .itemurl) ?? ""
+        itemurl = Self.normalizedMediaURLString(JSONNullTolerant.optionalString(container, .itemurl) ?? "")
         itemsize = JSONNullTolerant.optionalString(container, .itemsize)
         duration = JSONNullTolerant.optionalInt(container, .duration)
         isFlex = JSONNullTolerant.optionalBool(container, .isFlex)
@@ -252,17 +252,44 @@ extension AdItemModel {
         "mp4", "mov", "m4v", "mpg", "mpeg", "m3u8"
     ]
 
+    /// Normalize creative URLs (`https:\/\/...` → `https://...`, trim quotes/whitespace).
+    static func normalizedMediaURLString(_ raw: String) -> String {
+        var s = raw.trimmingCharacters(in: .whitespacesAndNewlines)
+        if (s.hasPrefix("\"") && s.hasSuffix("\"")) || (s.hasPrefix("'") && s.hasSuffix("'")) {
+            s = String(s.dropFirst().dropLast())
+        }
+        // Literal JSON-style escapes that sometimes survive caching / string copies.
+        s = s.replacingOccurrences(of: "\\/", with: "/")
+        return s.trimmingCharacters(in: .whitespacesAndNewlines)
+    }
+
+    /// Parsed media URL after normalization (nil if unusable).
+    var mediaURL: URL? {
+        let s = Self.normalizedMediaURLString(itemurl)
+        guard !s.isEmpty else { return nil }
+        if let url = URL(string: s) { return url }
+        // Fallback for lightly malformed strings (spaces, etc.).
+        if let encoded = s.addingPercentEncoding(withAllowedCharacters: .urlFragmentAllowed) {
+            return URL(string: encoded)
+        }
+        return nil
+    }
+
     /// Only `image` and `video` are shown on the player (e.g. `Banner` is not displayable).
     var isDisplayableAsset: Bool {
         let type = assettype.lowercased()
         return type == "image" || type == "video"
     }
 
-    /// File extension from `itemurl` (lowercased).
+    /// File extension from `itemurl` (lowercased). Does not rely solely on `URL` parsing.
     var mediaPathExtension: String {
-        URL(string: itemurl.trimmingCharacters(in: .whitespacesAndNewlines))?
-            .pathExtension
-            .lowercased() ?? ""
+        if let ext = mediaURL?.pathExtension.lowercased(), !ext.isEmpty {
+            return ext
+        }
+        // Path-only fallback: .../file.png?query → png
+        let trimmed = Self.normalizedMediaURLString(itemurl)
+        let withoutQuery = trimmed.split(separator: "?").first.map(String.init) ?? trimmed
+        return (withoutQuery as NSString).pathExtension.lowercased()
     }
 
     /// True when URL extension matches a real image/video file (rejects zip/html/etc.).
@@ -282,7 +309,7 @@ extension AdItemModel {
     /// Minimum fields needed to attempt playback: image|video + URL + playable media extension.
     var hasMinimumPlayableFields: Bool {
         isDisplayableAsset
-            && !itemurl.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+            && mediaURL != nil
             && hasPlayableMediaExtension
     }
 

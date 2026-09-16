@@ -46,16 +46,15 @@ struct TickerBannerView: View {
             }
         }
         .onAppear {
-            loadLogo(from: logoUrl)
+            loadLogo(from: AppRootViewModel.getSavedLogoUrl() ?? logoUrl)
             currentTime = Self.timeFormatter.string(from: Date())
-            // Ads are playing — start ticker from the beginning (not earlier via heartbeat).
-            marquee.start(tickerMessage)
-        }
-        .onDisappear {
-            marquee.stop()
+            // Prefer latest heartbeat-cached ticker over stale view prop.
+            // If already scrolling (e.g. brief SwiftUI remount during main-slot buffer), keep motion.
+            marquee.startIfNeeded(AppRootViewModel.getSavedTickerMessage() ?? tickerMessage)
         }
         .onReceive(NotificationCenter.default.publisher(for: .tickerUpdated)) { _ in
             loadLogo(from: AppRootViewModel.getSavedLogoUrl())
+            marquee.submit(AppRootViewModel.getSavedTickerMessage())
         }
         .onReceive(NotificationCenter.default.publisher(for: .heartbeatDidComplete)) { _ in
             marquee.submit(AppRootViewModel.getSavedTickerMessage())
@@ -200,9 +199,24 @@ final class TickerMarqueeEngine: ObservableObject {
         beginLoop(next, fromStart: true)
     }
 
+    /// Start only when idle; if already scrolling, leave offset/timer alone (buffer remounts).
+    func startIfNeeded(_ raw: String?) {
+        if bannerVisible, timer != nil, !playingMessage.isEmpty {
+            return
+        }
+        if bannerVisible, !playingMessage.isEmpty, !waitingForWidth {
+            startTimer()
+            return
+        }
+        start(raw)
+    }
+
     /// Heartbeat / API update. Ignored until ads overlay has started.
     func submit(_ raw: String?) {
-        guard bannerVisible else { return }
+        guard bannerVisible else {
+            print("📢 Ticker submit skipped — banner not visible yet")
+            return
+        }
 
         let next = resolveMessage(raw, countHeartbeat: true)
         if next.isEmpty {
@@ -219,8 +233,10 @@ final class TickerMarqueeEngine: ObservableObject {
            phase == .looping {
             return
         }
+        print("📢 Ticker submit handoff → \"\(next)\"")
         incomingMessage = next
         if phase == .looping { phase = .waitSeam }
+        // If we were mid-handoff, keep handoff but with the newer incoming text.
         startTimer()
     }
 

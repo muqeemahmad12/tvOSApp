@@ -32,12 +32,17 @@ struct AdPlayerView: View {
                     let playableMainVideo = mainItem.map { $0.isVideoType && $0.hasMinimumPlayableFields } ?? false
                     let unplayableMainVideo = mainItem.map { $0.isVideoType && !$0.hasMinimumPlayableFields } ?? false
                     let hasCompanionSlots = !companions.isEmpty
+                    let showLShape = viewModel.showsLShapeCompanions
+                    let showWhiteMain = viewModel.showWhiteMainSlot
+                    let showMainLoader = viewModel.isMainSlotLoading
 
-                    // Video (or white video slot) + companions while L-shape is active.
-                    let showVideoCompanions = (playableMainVideo || unplayableMainVideo) && hasCompanionSlots && viewModel.showsLShapeCompanions
-                    // Image-only layouts (no video slot in group).
-                    let imageOnlyPair = mainIdx == nil && companions.count == 2
-                    let imageOnlyMulti = mainIdx == nil && companions.count >= 3
+                    // Video (or white/loader main slot) + companions while L-shape is active.
+                    let showVideoCompanions = (playableMainVideo || unplayableMainVideo || showWhiteMain || showMainLoader)
+                        && hasCompanionSlots && showLShape
+                    // Image-only layouts (no video slot in group) — collapse when showLShape is false.
+                    let imageOnlyPair = mainIdx == nil && companions.count == 2 && showLShape
+                    let imageOnlyMulti = mainIdx == nil && companions.count >= 3 && showLShape
+                    let imageOnlyFullscreen = mainIdx == nil && !companions.isEmpty && !showLShape
 
                     let screenWidth = geo.size.width
                     let screenHeight = geo.size.height
@@ -52,7 +57,7 @@ struct AdPlayerView: View {
 
                     // Slot mapping by API order — never reuse one companion for two slots when
                     // another (possibly unplayable) item exists for that place.
-                    let mainImage: AdItemModel? = (imageOnlyPair || imageOnlyMulti) ? companions[0] : nil
+                    let mainImage: AdItemModel? = (imageOnlyPair || imageOnlyMulti || imageOnlyFullscreen) ? companions[0] : nil
                     let bottomImage: AdItemModel? = {
                         if showVideoCompanions { return companions[0] }
                         if imageOnlyMulti { return companions[1] }
@@ -69,12 +74,42 @@ struct AdPlayerView: View {
                     }()
 
                     if mainIdx == nil && companions.count == 1 {
-                        slotContent(for: companions[0], width: geo.size.width, height: geo.size.height)
-                            .position(x: geo.size.width / 2, y: geo.size.height / 2)
+                        if showMainLoader {
+                            mainSlotLoader(width: geo.size.width, height: geo.size.height)
+                                .position(x: geo.size.width / 2, y: geo.size.height / 2)
+                        } else if showWhiteMain {
+                            Color.white
+                                .frame(width: geo.size.width, height: geo.size.height)
+                                .position(x: geo.size.width / 2, y: geo.size.height / 2)
+                        } else {
+                            slotContent(for: companions[0], width: geo.size.width, height: geo.size.height)
+                                .position(x: geo.size.width / 2, y: geo.size.height / 2)
+                        }
                     } else {
                         ZStack(alignment: .topLeading) {
-                            // MARK: - Main (video fullscreen or L-shape, or lead image when no video)
-                            if playableMainVideo {
+                            // MARK: - Main (loader / white / video / lead image)
+                            if showMainLoader {
+                                mainSlotLoader(width: videoWidth, height: videoHeight)
+                                    .position(
+                                        x: videoWidth / 2,
+                                        y: showVideoCompanions ? (videoHeight / 2) : screenHeight / 2
+                                    )
+                                    .animation(
+                                        viewModel.animateLShapeLayoutChange ? .easeInOut(duration: 1.0) : nil,
+                                        value: showVideoCompanions
+                                    )
+                            } else if showWhiteMain {
+                                Color.white
+                                    .frame(width: videoWidth, height: videoHeight)
+                                    .position(
+                                        x: videoWidth / 2,
+                                        y: showVideoCompanions ? (videoHeight / 2) : screenHeight / 2
+                                    )
+                                    .animation(
+                                        viewModel.animateLShapeLayoutChange ? .easeInOut(duration: 1.0) : nil,
+                                        value: showVideoCompanions
+                                    )
+                            } else if playableMainVideo {
                                 // Non-interactive layer so Menu reaches the exit confirmation
                                 // (SwiftUI VideoPlayer steals focus and swallows Menu).
                                 NonInteractiveVideoPlayer(player: viewModel.activePlayer)
@@ -84,14 +119,13 @@ struct AdPlayerView: View {
                                     .allowsHitTesting(false)
                                     .position(x: videoWidth / 2,
                                               y: showVideoCompanions ? (videoHeight / 2) : screenHeight / 2)
-                                    .animation(.easeInOut(duration: 1.0), value: showVideoCompanions)
-                            } else if unplayableMainVideo && showVideoCompanions {
-                                Color.white
-                                    .frame(width: videoWidth, height: videoHeight)
-                                    .position(x: videoWidth / 2, y: videoHeight / 2)
+                                    .animation(
+                                        viewModel.animateLShapeLayoutChange ? .easeInOut(duration: 1.0) : nil,
+                                        value: showVideoCompanions
+                                    )
                             } else if let mainImage {
                                 slotContent(for: mainImage, width: videoWidth, height: videoHeight)
-                                    .position(x: videoWidth / 2, y: videoHeight / 2)
+                                    .position(x: videoWidth / 2, y: showVideoCompanions || imageOnlyMulti ? (videoHeight / 2) : screenHeight / 2)
                             }
 
                             // MARK: - Bottom Image
@@ -120,12 +154,15 @@ struct AdPlayerView: View {
             }
             
             // MARK: - Ticker/Banner Overlay (with time display)
+            // Keep above main-slot loader/video so buffering never covers or remount-stops the marquee.
             if viewModel.isPlayerReadyForOverlay {
                 TickerBannerView(
                     tickerMessage: tickerMessage,
                     logoUrl: logoUrl,
                     showTime: true  // Can be controlled via config
                 )
+                .zIndex(10)
+                .allowsHitTesting(false)
             }
             
         }
@@ -193,6 +230,19 @@ struct AdPlayerView: View {
         }
     }
     
+    // MARK: - Main slot buffering (avoids blank white while media prepares)
+    private func mainSlotLoader(width: CGFloat, height: CGFloat) -> some View {
+        ZStack {
+            Color.black
+            ProgressView()
+                .progressViewStyle(CircularProgressViewStyle(tint: .white))
+                .scaleEffect(2.0)
+        }
+        .frame(width: width, height: height)
+        .allowsHitTesting(false)
+        .accessibilityHidden(true)
+    }
+
     // MARK: - Slot helpers (playable image or white placeholder)
     @ViewBuilder
     private func slotContent(for ad: AdItemModel, width: CGFloat, height: CGFloat) -> some View {

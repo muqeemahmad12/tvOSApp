@@ -32,6 +32,12 @@ final class AdPlayerViewModel: ObservableObject {
     @Published var isWaitingForPlayableContent = false
     /// When false with a video+image group, skip L-shape companions and play video fullscreen.
     @Published var showsLShapeCompanions = true
+    /// Main video/image failed — show white in the main slot (keep L-shape for companion duration).
+    @Published var showWhiteMainSlot = false
+    /// Main creative still buffering/loading — show a compact loader (not a blank white screen).
+    @Published var isMainSlotLoading = false
+    /// Animate L↔fullscreen only for intentional duration collapse (not corrupt → fullscreen).
+    @Published var animateLShapeLayoutChange = false
 
     // MARK: - Private state
     fileprivate var pendingGroups: [AdSequenceGroup] = []
@@ -46,7 +52,9 @@ final class AdPlayerViewModel: ObservableObject {
     fileprivate var videoEndObserver: NSObjectProtocol?
     fileprivate var videoFailedObserver: NSObjectProtocol?
     /// Prevents double-advance when both status=.failed and FailedToPlayToEndTime fire.
-    fileprivate var isSkippingCorruptMain = false
+    fileprivate var isHandlingCorruptMain = false
+    /// Prevents duplicate impression pixels for the same creative within one group play.
+    fileprivate var firedImpressionKeys: Set<String> = []
     /// Counts corrupt skips in one full playlist pass; if all fail → waiting (keep disk cache).
     fileprivate var consecutiveCorruptSkips = 0
     
@@ -252,9 +260,20 @@ extension AdPlayerViewModel {
                 let images = group.lShapeCompanions
                 let hasVideo = group.ii.contains { $0.isVideoType && $0.hasMinimumPlayableFields }
                 if hasVideo, !images.isEmpty {
-                    showsLShapeCompanions = true
-                    scheduleLShapeCollapseIfNeeded(images: images)
+                    // Broken L-shape + healthy video → keep playing video fullscreen.
+                    let companionBad = images.contains { isUnusableCompanion($0) }
+                    showsLShapeCompanions = !companionBad && !showWhiteMainSlot
+                    if showsLShapeCompanions {
+                        scheduleLShapeCollapseIfNeeded(images: images)
+                    }
                 } else if !hasVideo {
+                    // Image L-shape: only resume L layout when every image is still usable.
+                    if images.count >= 2, images.contains(where: { isUnusableCompanion($0) }) {
+                        print("⏭️ Image L-shape broken on resume — skipping group")
+                        skipEntireCorruptGroup()
+                        return
+                    }
+                    showsLShapeCompanions = images.count >= 2 && !showWhiteMainSlot
                     startGroupTimer()
                 }
             }
@@ -305,7 +324,13 @@ private extension AdPlayerViewModel {
 
     /// Download a single asset and persist it to disk.
     func downloadAsset(_ remoteURLString: String) async -> URL? {
-        guard let remoteURL = URL(string: remoteURLString) else { return nil }
+        let normalized = AdItemModel.normalizedMediaURLString(remoteURLString)
+        guard let remoteURL = URL(string: normalized) ?? {
+            normalized.addingPercentEncoding(withAllowedCharacters: .urlFragmentAllowed).flatMap(URL.init(string:))
+        }() else {
+            print("❌ Invalid media URL:", remoteURLString)
+            return nil
+        }
         let fileName = remoteURL.lastPathComponent.lowercased()
         let destination = adsCacheDir.appendingPathComponent(fileName)
 
@@ -362,7 +387,7 @@ private extension AdPlayerViewModel {
         let keepFiles = Set(groups.flatMap { group in
             group.ii
                 .filter { $0.hasMinimumPlayableFields }
-                .compactMap { URL(string: $0.itemurl)?.lastPathComponent.lowercased() }
+                .compactMap { $0.mediaURL?.lastPathComponent.lowercased() }
         })
 
         var removed = 0
@@ -457,7 +482,7 @@ private extension AdPlayerViewModel {
                     keptAds.append(ad)
                     continue
                 }
-                guard URL(string: ad.itemurl) != nil || localURLs[ad.itemurl] != nil else {
+                guard ad.mediaURL != nil || localURLs[ad.itemurl] != nil else {
                     if isLShape {
                         print("⬜ Invalid video URL — white placeholder in L-shape:", ad.itemurl)
                         keptAds.append(ad)
@@ -502,7 +527,11 @@ private extension AdPlayerViewModel {
         let group = groupedAds[currentIndex]
         currentGroup = group
         isWaitingForPlayableContent = false
-        consecutiveCorruptSkips = 0
+        showWhiteMainSlot = false
+        isMainSlotLoading = false
+        isHandlingCorruptMain = false
+        firedImpressionKeys.removeAll()
+        animateLShapeLayoutChange = false
         print("▶️ Playing group \(group.sequence) — \(group.ii.count) ads")
         isPlayerReadyForOverlay = true
 
@@ -535,86 +564,186 @@ private extension AdPlayerViewModel {
         let video = ads.first { $0.isVideoType && $0.hasMinimumPlayableFields }
         let hasUnplayableVideoSlot = ads.contains { $0.isVideoType && !$0.hasMinimumPlayableFields }
 
-        // Play video whenever a playable one exists.
-        // L-shape companions show first; after their duration the video scales fullscreen.
-        // Unplayable companions (incl. zip typed as video) stay as white — never reuse another image.
+        // Playable main video: stay fullscreen until companions prove healthy, then show L-shape.
+        // Companion images are placeholders — if any fail, keep video fullscreen (do not skip).
+        // Trackers fire only for creatives that actually display (never for corrupt).
         if let video {
-            trackImpression(for: video)
-            showsLShapeCompanions = !companions.isEmpty
-            for ad in companions where ad.hasMinimumPlayableFields {
-                trackImpression(for: ad)
-            }
-            Task {
-                for ad in companions where ad.hasMinimumPlayableFields {
-                    await loadImage(for: ad)
-                }
-                guard currentGroup?.sequence == group.sequence else { return }
-                let failed = companions.filter {
-                    $0.hasMinimumPlayableFields && self.imageCache[$0.itemurl] == nil
-                }
-                if !failed.isEmpty {
-                    print("⬜ \(failed.count) L-shape companion(s) failed — showing white in place")
-                }
+            consecutiveCorruptSkips = 0
+            animateLShapeLayoutChange = false
+            let knownBadCompanion = companions.contains { !$0.hasMinimumPlayableFields }
+            // Fullscreen immediately; loader covers buffer gap until readyToPlay.
+            showsLShapeCompanions = false
+            showWhiteMainSlot = false
+            isMainSlotLoading = true
+            if knownBadCompanion {
+                print("📐 L-shape companion unplayable — main video fullscreen by default")
             }
             playVideo(video)
-            if !companions.isEmpty {
-                scheduleLShapeCollapseIfNeeded(images: companions)
-            }
-            return
-        }
-
-        // Unplayable main video (e.g. zip) + companions → white main, keep L-shape slots.
-        if hasUnplayableVideoSlot && !companions.isEmpty {
-            print("⬜ Unplayable main video — white in main slot, keeping L-shape companions")
-            showsLShapeCompanions = true
-            activePlayer = nil
-            for ad in companions where ad.hasMinimumPlayableFields {
-                trackImpression(for: ad)
-            }
+            guard !companions.isEmpty, !knownBadCompanion else { return }
             Task {
-                for ad in companions where ad.hasMinimumPlayableFields {
-                    await loadImage(for: ad)
-                }
+                await self.prefetchCompanions(companions)
                 guard currentGroup?.sequence == group.sequence else { return }
-                startGroupTimer()
-            }
-            return
-        }
-
-        // Image-only: load first; if main (lead) image is corrupt/unplayable, white main (multi)
-        // or skip group (single) — never stretch companions into the main slot.
-        showsLShapeCompanions = false
-        let images = companions
-        for ad in images where ad.hasMinimumPlayableFields {
-            trackImpression(for: ad)
-        }
-        Task {
-            for ad in images where ad.hasMinimumPlayableFields {
-                await loadImage(for: ad)
-            }
-            guard currentGroup?.sequence == group.sequence else { return }
-            if let main = images.first {
-                let mainPlayable = main.hasMinimumPlayableFields && imageCache[main.itemurl] != nil
-                if !mainPlayable {
-                    if images.count >= 2 {
-                        print("⬜ Main image unplayable — white in place (keeping other slots)")
-                        startGroupTimer()
-                        return
-                    }
-                    print("⏭️ Main image corrupt/unreadable — skipping group \(group.sequence)")
-                    skipCorruptMainContent()
+                if companions.contains(where: { self.isUnusableCompanion($0) }) {
+                    print("📐 L-shape broken, video OK — play video fullscreen")
+                    self.animateLShapeLayoutChange = false
+                    self.showsLShapeCompanions = false
                     return
                 }
+                self.animateLShapeLayoutChange = false
+                self.showsLShapeCompanions = true
+                for ad in companions where !self.isUnusableCompanion(ad) {
+                    self.trackImpression(for: ad)
+                }
+                self.scheduleLShapeCollapseIfNeeded(images: companions)
             }
-            startGroupTimer()
+            return
+        }
+
+        // Unplayable main video (e.g. zip) + L-shape images:
+        // Video is the real creative; images are placeholders only — skip the whole group.
+        if hasUnplayableVideoSlot && !companions.isEmpty {
+            print("⏭️ Unplayable main video in L-shape — skipping group \(group.sequence)")
+            activePlayer = nil
+            showWhiteMainSlot = false
+            isMainSlotLoading = false
+            showsLShapeCompanions = false
+            animateLShapeLayoutChange = false
+            skipEntireCorruptGroup()
+            return
+        }
+
+        // Image-only: L-shape (2+ images) requires every slot healthy.
+        // If L-shape is broken (any corrupt) and main is an image → skip the whole group
+        // (never fall back to fullscreen main image).
+        let images = group.ii
+        let isImageLShape = images.count >= 2
+        animateLShapeLayoutChange = false
+        showsLShapeCompanions = false
+        showWhiteMainSlot = false
+        isMainSlotLoading = true
+
+        if isImageLShape, images.contains(where: { !$0.hasMinimumPlayableFields }) {
+            print("⏭️ Image L-shape broken (unplayable slot) — skipping group \(group.sequence)")
+            isMainSlotLoading = false
+            skipEntireCorruptGroup()
+            return
+        }
+
+        Task {
+            let main = images.first
+            let sideImages = Array(images.dropFirst())
+
+            if let main, main.hasMinimumPlayableFields {
+                await loadImage(for: main, timeout: 15)
+                if self.imageCache[main.itemurl] != nil {
+                    self.isMainSlotLoading = false
+                    self.showWhiteMainSlot = false
+                }
+            }
+
+            await self.prefetchCompanions(sideImages)
+            guard currentGroup?.sequence == group.sequence else { return }
+
+            let mainPlayable = main.map { $0.hasMinimumPlayableFields && self.imageCache[$0.itemurl] != nil } ?? false
+
+            if isImageLShape {
+                if images.contains(where: { self.isUnusableCompanion($0) }) {
+                    print("⏭️ Image L-shape broken — skipping group \(group.sequence) (no fullscreen image fallback)")
+                    self.skipEntireCorruptGroup()
+                    return
+                }
+                self.consecutiveCorruptSkips = 0
+                self.animateLShapeLayoutChange = false
+                self.isMainSlotLoading = false
+                self.showWhiteMainSlot = false
+                self.showsLShapeCompanions = true
+                for ad in images {
+                    self.trackImpression(for: ad)
+                }
+                self.startGroupTimer()
+                return
+            }
+
+            // Single fullscreen image
+            if !mainPlayable {
+                self.isMainSlotLoading = false
+                self.showWhiteMainSlot = true
+                self.consecutiveCorruptSkips = 0
+                self.animateLShapeLayoutChange = false
+                self.showsLShapeCompanions = false
+                print("⬜ Main image corrupt — white fullscreen for duration")
+                self.startGroupTimer()
+                return
+            }
+
+            self.consecutiveCorruptSkips = 0
+            self.animateLShapeLayoutChange = false
+            self.isMainSlotLoading = false
+            self.showWhiteMainSlot = false
+            self.showsLShapeCompanions = false
+            if let main {
+                self.trackImpression(for: main)
+            }
+            self.startGroupTimer()
         }
     }
 
+    /// Fast companion prefetch — short timeout so corrupt sides don't stall the main creative.
+    func prefetchCompanions(_ companions: [AdItemModel]) async {
+        for ad in companions where ad.hasMinimumPlayableFields {
+            await loadImage(for: ad, timeout: 8)
+        }
+    }
+
+    /// Companion/image is unusable when it lacks playable fields or image bytes failed to load.
+    func isUnusableCompanion(_ ad: AdItemModel) -> Bool {
+        if !ad.hasMinimumPlayableFields { return true }
+        if ad.isImageType {
+            return imageCache[ad.itemurl] == nil
+        }
+        return false
+    }
+
+    /// Hide L-shape panels and keep main (video/image/white) fullscreen.
+    /// - Parameter animated: true only for normal companion-duration collapse.
+    func collapseLShapeToMainFullscreen(animated: Bool = false) {
+        timer?.invalidate()
+        timer = nil
+        animateLShapeLayoutChange = animated
+        showsLShapeCompanions = false
+        consecutiveCorruptSkips = 0
+    }
+
+    /// Every creative in the group failed — advance (or wait if the whole playlist is bad).
+    func skipEntireCorruptGroup() {
+        clearVideoObservers()
+        timer?.invalidate()
+        timer = nil
+        activePlayer?.pause()
+        activePlayer = nil
+        showWhiteMainSlot = false
+        isMainSlotLoading = false
+        showsLShapeCompanions = false
+        animateLShapeLayoutChange = false
+        isHandlingCorruptMain = false
+
+        consecutiveCorruptSkips += 1
+        let total = max(groupedAds.count, 1)
+        if consecutiveCorruptSkips >= total {
+            print("⏳ All \(total) playlist item(s) unplayable at runtime — waiting (disk cache kept)")
+            consecutiveCorruptSkips = 0
+            enterWaitingForPlayableContent()
+            return
+        }
+        transitionToNextItem()
+    }
+
     /// Keep L-shape for companion `duration`, then hide banners and scale video to fullscreen.
-    /// Only runs while main video is healthy; corrupt main skips the group instead.
+    /// Only while main video is healthy; corrupt main uses white hold instead.
     func scheduleLShapeCollapseIfNeeded(images: [AdItemModel]) {
         timer?.invalidate()
         timer = nil
+        consecutiveCorruptSkips = 0
         guard !images.isEmpty else { return }
         guard let companionDuration = images.compactMap(\.duration).filter({ $0 > 0 }).max() else {
             print("📐 L-shape for full video (no companion duration from API)")
@@ -625,44 +754,78 @@ private extension AdPlayerViewModel {
             Task { @MainActor in
                 guard let self else { return }
                 // If player already failed/cleared, do not scale companions.
-                guard self.activePlayer != nil else { return }
+                guard self.activePlayer != nil, !self.showWhiteMainSlot, !self.isMainSlotLoading else { return }
                 print("📐 L-shape duration ended — scaling video fullscreen")
                 if let group = self.currentGroup {
                     for ad in group.ii where ad.assettype.lowercased() == "image" {
+                        guard !self.isUnusableCompanion(ad) else { continue }
                         self.trackImageViewComplete(for: ad, duration: companionDuration)
                     }
                 }
-                self.showsLShapeCompanions = false
+                self.collapseLShapeToMainFullscreen(animated: true)
                 self.timer?.invalidate()
                 self.timer = nil
             }
         }
     }
 
-    /// Main video/image failed — advance without expanding L-shape companions.
-    /// If every item in the playlist fails, go to waiting and keep disk cache.
+    /// Main video/image failed — white in main slot and hold for L-shape (or group) duration, then advance.
     func skipCorruptMainContent() {
-        guard !isSkippingCorruptMain else { return }
-        isSkippingCorruptMain = true
-        print("⏭️ Skipping item — main creative corrupt/invalid (L-shape will not be scaled)")
+        handleCorruptMainContent()
+    }
+
+    /// Main creative failed at runtime.
+    /// L-shape: video is primary — if it fails, skip (do not hold white with placeholder images).
+    /// Single-item: white fullscreen for duration.
+    func handleCorruptMainContent() {
+        guard !isHandlingCorruptMain else { return }
+        isHandlingCorruptMain = true
+
         clearVideoObservers()
         timer?.invalidate()
         timer = nil
         activePlayer?.pause()
         activePlayer = nil
+        showWhiteMainSlot = false
+        isMainSlotLoading = false
         showsLShapeCompanions = false
+        animateLShapeLayoutChange = false
 
-        consecutiveCorruptSkips += 1
-        let total = max(groupedAds.count, 1)
-        if consecutiveCorruptSkips >= total {
-            print("⏳ All \(total) playlist item(s) unplayable at runtime — waiting (disk cache kept)")
-            isSkippingCorruptMain = false
-            enterWaitingForPlayableContent()
+        let isLShape = (currentGroup?.ii.count ?? 0) >= 2
+        if isLShape {
+            print("⏭️ Main creative failed in L-shape — skipping group")
+            skipEntireCorruptGroup()
             return
         }
 
-        transitionToNextItem()
-        isSkippingCorruptMain = false
+        showWhiteMainSlot = true
+        print("⬜ Main corrupt — white fullscreen for group duration")
+        consecutiveCorruptSkips = 0
+        startGroupTimer()
+        isHandlingCorruptMain = false
+    }
+
+    /// Hold white main + companions for max companion duration, then advance (no fullscreen scale).
+    func scheduleWhiteMainHoldThenAdvance(companions: [AdItemModel]) {
+        timer?.invalidate()
+        timer = nil
+        let fromCompanions = companions.compactMap(\.duration).filter { $0 > 0 }.max()
+        let fromGroup = currentGroup?.ii.compactMap(\.duration).filter { $0 > 0 }.max()
+        let duration = fromCompanions ?? fromGroup ?? 20
+        print("⬜ White main hold for \(duration)s (L-shape duration), then next")
+        timer = Timer.scheduledTimer(withTimeInterval: TimeInterval(duration), repeats: false) { [weak self] _ in
+            Task { @MainActor in
+                guard let self else { return }
+                if let group = self.currentGroup {
+                    for ad in group.ii where ad.assettype.lowercased() == "image" {
+                        self.trackImageViewComplete(for: ad, duration: duration)
+                    }
+                }
+                self.timer?.invalidate()
+                self.timer = nil
+                self.transitionToNextItem()
+            }
+        }
     }
 
     func clearVideoObservers() {
@@ -682,7 +845,7 @@ private extension AdPlayerViewModel {
         clearVideoObservers()
 
         let cachedURL = localURLs[ad.itemurl]
-        let remoteURL = URL(string: ad.itemurl)
+        let remoteURL = ad.mediaURL
         
         guard let playURL = cachedURL ?? remoteURL else {
             print("❌ Invalid URL:", ad.itemurl)
@@ -712,6 +875,11 @@ private extension AdPlayerViewModel {
                     let message = item.error?.localizedDescription ?? "unknown"
                     print("❌ Main video failed to load: \(message)")
                     self.skipCorruptMainContent()
+                } else if item.status == .readyToPlay {
+                    // Swap loader for real video frames.
+                    self.isMainSlotLoading = false
+                    self.showWhiteMainSlot = false
+                    self.trackImpression(for: ad)
                 }
             }
         }
@@ -745,10 +913,43 @@ private extension AdPlayerViewModel {
     }
     
     // MARK: - Impression Tracking
-    
+
+    /// Only fire trackers for creatives that are playable and (for images) loaded into cache.
+    func canFireTracker(for ad: AdItemModel) -> Bool {
+        guard ad.hasMinimumPlayableFields else { return false }
+        if ad.isImageType {
+            guard let image = imageCache[ad.itemurl], image.size.width > 1, image.size.height > 1 else {
+                return false
+            }
+            return true
+        }
+        if ad.isVideoType {
+            return activePlayer != nil && !showWhiteMainSlot && !isMainSlotLoading
+        }
+        return false
+    }
+
+    private func impressionKey(for ad: AdItemModel) -> String {
+        let id = ad.itemid.isEmpty ? ad.itemurl : ad.itemid
+        return "\(currentGroup?.sequence ?? 0)|\(id)"
+    }
+
+    /// Fires `trackerlist` once per creative per group when it is actually shown.
     func trackImpression(for ad: AdItemModel) {
         guard !disablePreloadingAndValidation else { return }
+        guard canFireTracker(for: ad) else {
+            print("🚫 Skip impression tracker — corrupt/unusable creative")
+            return
+        }
+        let key = impressionKey(for: ad)
+        guard !firedImpressionKeys.contains(key) else {
+            print("🚫 Skip impression tracker — already fired for this creative in group")
+            return
+        }
+        firedImpressionKeys.insert(key)
+
         if let trackers = ad.trackerlist, !trackers.isEmpty {
+            print("📡 Impression tracker for itemid=\(ad.itemid.isEmpty ? "(url)" : ad.itemid) urls=\(trackers.count)")
             TrackerService.shared.fire(urls: trackers)
         }
         let itemId = String(ad.itemid.prefix(120))
@@ -762,45 +963,61 @@ private extension AdPlayerViewModel {
             sampleRate: 0.2
         )
     }
-    
+
+    /// View/playback finished — do not re-fire impression `trackerlist` (those are one-shot pixels).
     func trackCompletion(for ad: AdItemModel) {
         guard !disablePreloadingAndValidation else { return }
-        if let trackers = ad.trackerlist, !trackers.isEmpty {
-            TrackerService.shared.fire(urls: trackers)
-        }
+        guard canFireTracker(for: ad) else { return }
+        print("✅ Creative completed itemid=\(ad.itemid.isEmpty ? "(url)" : ad.itemid) (no re-fire of impression trackers)")
     }
-    
+
+    /// Image dwell finished — do not re-fire impression `trackerlist`.
     func trackImageViewComplete(for ad: AdItemModel, duration: Int) {
         guard !disablePreloadingAndValidation else { return }
-        if let trackers = ad.trackerlist, !trackers.isEmpty {
-            TrackerService.shared.fire(urls: trackers)
-        }
+        guard canFireTracker(for: ad) else { return }
+        print("✅ Image view complete itemid=\(ad.itemid.isEmpty ? "(url)" : ad.itemid) duration=\(duration)s (no re-fire of impression trackers)")
     }
 
     /// Load image from local disk/remote and cache it in memory.
-    func loadImage(for ad: AdItemModel) async {
+    /// - Parameter timeout: remote fetch timeout (companions use a short value to fail fast).
+    func loadImage(for ad: AdItemModel, timeout: TimeInterval = 30) async {
         if imageCache[ad.itemurl] != nil { return }
 
-        let localURL = localURLs[ad.itemurl] ?? URL(string: ad.itemurl)!
+        // Prefer on-disk cache (instant).
+        if let cached = localURLs[ad.itemurl] {
+            do {
+                let data = try Data(contentsOf: cached)
+                if let image = UIImage(data: data), image.size.width > 1 {
+                    storeImage(image, forKey: ad.itemurl)
+                    print("🖼️ Cached image (disk):", ad.itemurl)
+                }
+            } catch {
+                print("❌ Image disk load failed:", ad.itemurl, error.localizedDescription)
+            }
+            return
+        }
+
+        guard let remoteURL = ad.mediaURL else {
+            print("❌ Image load skipped — invalid URL:", ad.itemurl)
+            return
+        }
 
         do {
-            let data = try await withCheckedThrowingContinuation { continuation in
-                DispatchQueue.global(qos: .userInitiated).async {
-                    do {
-                        let data = try Data(contentsOf: localURL)
-                        continuation.resume(returning: data)
-                    } catch {
-                        continuation.resume(throwing: error)
-                    }
-                }
+            var request = URLRequest(url: remoteURL)
+            request.timeoutInterval = timeout
+            let (data, response) = try await URLSession.shared.data(for: request)
+            if let http = response as? HTTPURLResponse, !(200...299).contains(http.statusCode) {
+                print("❌ Image HTTP \(http.statusCode):", ad.itemurl)
+                return
             }
-
-            if let image = UIImage(data: data) {
-                await MainActor.run { storeImage(image, forKey: ad.itemurl) }
-                print("🖼️ Cached image:", ad.itemurl)
+            if let image = UIImage(data: data), image.size.width > 1 {
+                storeImage(image, forKey: ad.itemurl)
+                print("🖼️ Cached image (network):", ad.itemurl)
+            } else {
+                print("❌ Image decode failed (bytes=\(data.count)):", ad.itemurl)
             }
         } catch {
-            print("❌ Image load failed:", error)
+            print("❌ Image load failed:", ad.itemurl, error.localizedDescription)
         }
     }
 
@@ -977,7 +1194,7 @@ private extension AdPlayerViewModel {
         for group in newGroups {
             for ad in group.ii {
                 // Use lowercased filename to match how downloadAsset saves files
-                let fileName = URL(string: ad.itemurl)?.lastPathComponent.lowercased() ?? ""
+                let fileName = ad.mediaURL?.lastPathComponent.lowercased() ?? ""
                 let localURL = adsCacheDir.appendingPathComponent(fileName)
 
                 if fileManager.fileExists(atPath: localURL.path) {
@@ -1045,7 +1262,7 @@ private extension AdPlayerViewModel {
     /// Enforce a hard size cap on AdsCache using LRU eviction (oldest access/modification first).
     func enforceCacheSizeLimit(keeping groups: [AdSequenceGroup]) {
         let keepFiles = Set(groups.flatMap { group in
-            group.ii.compactMap { URL(string: $0.itemurl)?.lastPathComponent.lowercased() }
+            group.ii.compactMap { $0.mediaURL?.lastPathComponent.lowercased() }
         })
 
         guard let files = try? fileManager.contentsOfDirectory(
