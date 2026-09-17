@@ -12,6 +12,8 @@ import SwiftUI
 extension Notification.Name {
     /// Posted when periodic quest sync applies a non-empty playlist to the player.
     static let questPlaylistApplied = Notification.Name("com.doceree.sparkfordooh.questPlaylistApplied")
+    /// Posted when quest returns `status: NO_DATA_FOUND` — force Waiting for Content.
+    static let questNoDataFound = Notification.Name("com.doceree.sparkfordooh.questNoDataFound")
     /// Posted when playback caches are wiped (not used on deactivation anymore; kept for manual/other clears).
     static let playbackCachesClearedOnDeactivation = Notification.Name("com.doceree.sparkfordooh.playbackCachesClearedOnDeactivation")
 }
@@ -32,7 +34,7 @@ final class AdPlayerViewModel: ObservableObject {
     @Published var isWaitingForPlayableContent = false
     /// When false with a video+image group, skip L-shape companions and play video fullscreen.
     @Published var showsLShapeCompanions = true
-    /// Main video/image failed — show white in the main slot (keep L-shape for companion duration).
+    /// Main video/image failed — show branded fallback in main slot (L-shape) or hold fullscreen.
     @Published var showWhiteMainSlot = false
     /// Main creative still buffering/loading — show a compact loader (not a blank white screen).
     @Published var isMainSlotLoading = false
@@ -57,6 +59,20 @@ final class AdPlayerViewModel: ObservableObject {
     fileprivate var firedImpressionKeys: Set<String> = []
     /// Counts corrupt skips in one full playlist pass; if all fail → waiting (keep disk cache).
     fileprivate var consecutiveCorruptSkips = 0
+    /// When companion image duration exceeds video length, restart video until L-shape collapses.
+    fileprivate var shouldRepeatVideoWhileLShape = false
+    /// Companion hold (seconds) while L-shape is active — used once measured video duration is known.
+    fileprivate var lShapeCompanionDurationSeconds: Int?
+    /// When the timed L-shape hold began (for equal-duration / repeat boundary checks).
+    fileprivate var lShapeHoldStartedAt: Date?
+    /// Prevents double next-item from L-timer and video-end racing at an equal boundary.
+    fileprivate var isFinishingLShapeGroup = false
+    /// Bumped to ignore stale `DidPlayToEndTime` after L-scale / advance.
+    fileprivate var videoEndEpoch: UInt64 = 0
+    /// Last measured media duration (seconds) for the current main video.
+    fileprivate var measuredMainVideoDuration: Double?
+    /// Creative currently attached to `activePlayer` (for re-binding end observer after L-scale).
+    fileprivate var activeVideoAd: AdItemModel?
     
     // MARK: - Sync failure tracking
     fileprivate var consecutiveSyncFailures = 0
@@ -353,6 +369,11 @@ private extension AdPlayerViewModel {
             return destination
         }
 
+        guard NetworkMonitor.shared.canMakeNetworkCalls else {
+            print("📵 Download skipped — no internet:", fileName)
+            return nil
+        }
+
         do {
             print("⬇️ Downloading:", fileName)
             let (data, _) = try await URLSession.shared.data(from: remoteURL)
@@ -532,6 +553,13 @@ private extension AdPlayerViewModel {
         isHandlingCorruptMain = false
         firedImpressionKeys.removeAll()
         animateLShapeLayoutChange = false
+        shouldRepeatVideoWhileLShape = false
+        lShapeCompanionDurationSeconds = nil
+        lShapeHoldStartedAt = nil
+        isFinishingLShapeGroup = false
+        measuredMainVideoDuration = nil
+        activeVideoAd = nil
+        videoEndEpoch &+= 1
         print("▶️ Playing group \(group.sequence) — \(group.ii.count) ads")
         isPlayerReadyForOverlay = true
 
@@ -599,16 +627,33 @@ private extension AdPlayerViewModel {
             return
         }
 
-        // Unplayable main video (e.g. zip) + L-shape images:
-        // Video is the real creative; images are placeholders only — skip the whole group.
+        // Unplayable main video (e.g. zip) + L-shape companions:
+        // Healthy companions → branded fallback in main + keep L for duration.
+        // Any companion corrupt → skip the group.
         if hasUnplayableVideoSlot && !companions.isEmpty {
-            print("⏭️ Unplayable main video in L-shape — skipping group \(group.sequence)")
-            activePlayer = nil
-            showWhiteMainSlot = false
+            print("🖼️ Unplayable main video — verifying L-shape companions for fallback/skip")
+            showWhiteMainSlot = true
             isMainSlotLoading = false
-            showsLShapeCompanions = false
             animateLShapeLayoutChange = false
-            skipEntireCorruptGroup()
+            showsLShapeCompanions = false
+            activePlayer = nil
+            Task {
+                await self.prefetchCompanions(companions)
+                guard currentGroup?.sequence == group.sequence else { return }
+                if companions.contains(where: { self.isUnusableCompanion($0) }) {
+                    print("⏭️ Corrupt video + broken L-shape — skipping group \(group.sequence)")
+                    self.skipEntireCorruptGroup()
+                    return
+                }
+                self.consecutiveCorruptSkips = 0
+                self.animateLShapeLayoutChange = false
+                self.showsLShapeCompanions = true
+                self.showWhiteMainSlot = true
+                for ad in companions where !self.isUnusableCompanion(ad) {
+                    self.trackImpression(for: ad)
+                }
+                self.scheduleWhiteMainHoldThenAdvance(companions: companions)
+            }
             return
         }
 
@@ -711,7 +756,13 @@ private extension AdPlayerViewModel {
         timer = nil
         animateLShapeLayoutChange = animated
         showsLShapeCompanions = false
+        shouldRepeatVideoWhileLShape = false
+        lShapeCompanionDurationSeconds = nil
+        lShapeHoldStartedAt = nil
         consecutiveCorruptSkips = 0
+        // Invalidate any DidPlayToEndTime that raced with this collapse (would advance immediately).
+        videoEndEpoch &+= 1
+        installVideoEndObserver(for: activeVideoAd, epoch: videoEndEpoch)
     }
 
     /// Every creative in the group failed — advance (or wait if the whole playlist is bad).
@@ -725,6 +776,9 @@ private extension AdPlayerViewModel {
         isMainSlotLoading = false
         showsLShapeCompanions = false
         animateLShapeLayoutChange = false
+        shouldRepeatVideoWhileLShape = false
+        lShapeCompanionDurationSeconds = nil
+        lShapeHoldStartedAt = nil
         isHandlingCorruptMain = false
 
         consecutiveCorruptSkips += 1
@@ -738,33 +792,223 @@ private extension AdPlayerViewModel {
         transitionToNextItem()
     }
 
-    /// Keep L-shape for companion `duration`, then hide banners and scale video to fullscreen.
-    /// Only while main video is healthy; corrupt main uses white hold instead.
+    /// Keep L-shape for companion `duration`, then either scale video fullscreen or advance.
+    /// - Equal durations (or exact N× video loops filling the hold) → next item, no scale.
+    /// - Video longer than hold (or mid-loop when hold ends) → remove L-shape and scale video.
+    /// - Video shorter than hold → repeat until hold ends, then apply the rules above.
     func scheduleLShapeCollapseIfNeeded(images: [AdItemModel]) {
         timer?.invalidate()
         timer = nil
         consecutiveCorruptSkips = 0
+        shouldRepeatVideoWhileLShape = false
+        lShapeCompanionDurationSeconds = nil
+        lShapeHoldStartedAt = nil
         guard !images.isEmpty else { return }
         guard let companionDuration = images.compactMap(\.duration).filter({ $0 > 0 }).max() else {
             print("📐 L-shape for full video (no companion duration from API)")
             return
         }
-        print("📐 L-shape for \(companionDuration)s, then scale video fullscreen")
+        lShapeCompanionDurationSeconds = companionDuration
+        lShapeHoldStartedAt = Date()
+        updateShouldRepeatVideoForLShape(companionDuration: companionDuration)
+        print("📐 L-shape for \(companionDuration)s — on end: stop+next if repeating/equal; scale only if video clearly longer")
         timer = Timer.scheduledTimer(withTimeInterval: TimeInterval(companionDuration), repeats: false) { [weak self] _ in
             Task { @MainActor in
-                guard let self else { return }
-                // If player already failed/cleared, do not scale companions.
-                guard self.activePlayer != nil, !self.showWhiteMainSlot, !self.isMainSlotLoading else { return }
-                print("📐 L-shape duration ended — scaling video fullscreen")
-                if let group = self.currentGroup {
-                    for ad in group.ii where ad.assettype.lowercased() == "image" {
-                        guard !self.isUnusableCompanion(ad) else { continue }
-                        self.trackImageViewComplete(for: ad, duration: companionDuration)
-                    }
+                self?.handleLShapeCompanionDurationEnded(companionDuration: companionDuration)
+            }
+        }
+    }
+
+    /// L-shape image hold finished.
+    /// Repetition / within ±1s of video length → stop video, next item, never scale.
+    /// Scale only when video is clearly longer than the L-shape hold (no repeat needed).
+    private func handleLShapeCompanionDurationEnded(companionDuration: Int) {
+        guard activePlayer != nil, !showWhiteMainSlot, !isMainSlotLoading else { return }
+        guard !isFinishingLShapeGroup else { return }
+        // Already collapsed or advancing — ignore timer/video-end races.
+        guard showsLShapeCompanions else { return }
+
+        if let group = currentGroup {
+            for ad in group.ii where ad.assettype.lowercased() == "image" {
+                guard !isUnusableCompanion(ad) else { continue }
+                trackImageViewComplete(for: ad, duration: companionDuration)
+            }
+        }
+
+        if shouldScaleAfterLShapeHold(companionDuration: companionDuration) {
+            let remaining = remainingMainVideoSeconds() ?? 0
+            print("📐 L-shape ended — video longer than hold, \(String(format: "%.2f", remaining))s left, scaling fullscreen")
+            collapseLShapeToMainFullscreen(animated: true)
+        } else {
+            let V = measuredMainVideoDuration ?? measuredMainVideoDurationSeconds()
+            print("📐 L-shape ended — stop video & next item (no scale) V=\(V.map { String(format: "%.2f", $0) } ?? "?")s C=\(companionDuration)s repeat=\(shouldRepeatVideoWhileLShape)")
+            finishLShapeAndAdvanceToNext()
+        }
+    }
+
+    /// ±1s tolerance when comparing video length (and N× loops) to L-shape hold.
+    private static let lShapeDurationBufferSeconds: Double = 1.0
+
+    /// Scale only when video is longer than L-shape (no repetition). Never scale after repeats.
+    private func shouldScaleAfterLShapeHold(companionDuration: Int) -> Bool {
+        let buffer = Self.lShapeDurationBufferSeconds
+        let C = Double(companionDuration)
+        let V = measuredMainVideoDuration ?? measuredMainVideoDurationSeconds()
+        let remaining = remainingMainVideoSeconds() ?? 0
+
+        // Repeating (or would repeat): stop at L-shape duration — never scale.
+        if shouldRepeatVideoWhileLShape { return false }
+        if let V, V < (C - buffer) { return false }
+
+        // Equal / within ±1s (incl. exact loop fill) → next, no scale.
+        if durationsWithinOneSecondBuffer(videoSeconds: V, companionDuration: companionDuration) {
+            return false
+        }
+
+        // Only scale when video is clearly longer than the hold and playhead still has time.
+        guard let V, V > (C + buffer) else { return false }
+        return remaining > buffer
+    }
+
+    /// True when video and L-shape are within 1s, or N video loops fill the hold within 1s.
+    private func durationsWithinOneSecondBuffer(videoSeconds: Double?, companionDuration: Int) -> Bool {
+        let C = Double(companionDuration)
+        let buffer = Self.lShapeDurationBufferSeconds
+        guard let V = videoSeconds, V > 0 else {
+            return (remainingMainVideoSeconds() ?? 0) <= buffer
+        }
+        if abs(V - C) <= buffer { return true }
+        guard V < C else { return false }
+
+        let remainder = C.truncatingRemainder(dividingBy: V)
+        if remainder <= buffer || abs(remainder - V) <= buffer { return true }
+
+        let loops = ceil(C / V)
+        let covered = loops * V
+        return abs(covered - C) <= buffer
+    }
+
+    /// Seconds still left on the current main video playhead (0 if ended / unknown).
+    private func remainingMainVideoSeconds() -> Double? {
+        guard let item = activePlayer?.currentItem else { return nil }
+        let cur = CMTimeGetSeconds(item.currentTime())
+        var dur = CMTimeGetSeconds(item.duration)
+        if !dur.isFinite || dur <= 0 {
+            dur = CMTimeGetSeconds(item.asset.duration)
+        }
+        if (!dur.isFinite || dur <= 0), let measured = measuredMainVideoDuration {
+            dur = measured
+        }
+        guard cur.isFinite, dur.isFinite, dur > 0 else { return nil }
+        return max(0, dur - cur)
+    }
+
+    /// Tear down L-shape + video and move to the next playlist group (no fullscreen scale).
+    private func finishLShapeAndAdvanceToNext() {
+        guard !isFinishingLShapeGroup else { return }
+        isFinishingLShapeGroup = true
+
+        timer?.invalidate()
+        timer = nil
+        shouldRepeatVideoWhileLShape = false
+        lShapeCompanionDurationSeconds = nil
+        lShapeHoldStartedAt = nil
+        showsLShapeCompanions = false
+        animateLShapeLayoutChange = false
+        isMainSlotLoading = false
+        showWhiteMainSlot = false
+        videoEndEpoch &+= 1
+
+        if let video = currentGroup?.ii.first(where: { $0.isVideoType && $0.hasMinimumPlayableFields }) {
+            trackCompletion(for: video)
+        }
+
+        clearVideoObservers()
+        activePlayer?.pause()
+        activePlayer = nil
+        activeVideoAd = nil
+        transitionToNextItem()
+    }
+
+    /// Loop video only when it is more than 1s shorter than the L-shape hold.
+    private func updateShouldRepeatVideoForLShape(companionDuration: Int) {
+        let C = Double(companionDuration)
+        let buffer = Self.lShapeDurationBufferSeconds
+        if let videoSeconds = measuredMainVideoDuration ?? measuredMainVideoDurationSeconds() {
+            measuredMainVideoDuration = videoSeconds
+            shouldRepeatVideoWhileLShape = videoSeconds < (C - buffer)
+            if shouldRepeatVideoWhileLShape {
+                print("🔁 Measured video \(String(format: "%.2f", videoSeconds))s < L-shape \(companionDuration)s − \(buffer)s — will repeat until hold ends")
+            } else if abs(videoSeconds - C) <= buffer {
+                print("▶️ Measured video \(String(format: "%.2f", videoSeconds))s within ±\(buffer)s of L-shape \(companionDuration)s — next item at hold end (no scale)")
+            } else {
+                print("▶️ Measured video \(String(format: "%.2f", videoSeconds))s vs L-shape \(companionDuration)s — scale only if leftover > \(buffer)s")
+            }
+        } else {
+            shouldRepeatVideoWhileLShape = true
+            print("📏 Video duration not ready yet — will measure at readyToPlay")
+        }
+    }
+
+    /// Duration from the playing item / asset (actual media), not the quest API field.
+    private func measuredMainVideoDurationSeconds() -> Double? {
+        guard let item = activePlayer?.currentItem else { return nil }
+        let candidates = [item.duration, item.asset.duration]
+        for d in candidates {
+            guard d.isNumeric, !d.isIndefinite else { continue }
+            let secs = CMTimeGetSeconds(d)
+            if secs.isFinite, secs > 0 { return secs }
+        }
+        return nil
+    }
+
+    /// Always log the exact measured media duration (and quest API duration when present).
+    private func printExactVideoDuration(for ad: AdItemModel) {
+        let apiDuration = ad.duration.map { "\($0)" } ?? "nil"
+        if let secs = measuredMainVideoDurationSeconds() {
+            measuredMainVideoDuration = secs
+            print("📏 Exact video duration: \(secs)s (api duration: \(apiDuration)s) item=\(ad.itemid.isEmpty ? ad.itemurl : ad.itemid)")
+            return
+        }
+        guard let asset = activePlayer?.currentItem?.asset else {
+            print("📏 Exact video duration: unavailable (api duration: \(apiDuration)s)")
+            return
+        }
+        Task { @MainActor in
+            do {
+                let duration = try await asset.load(.duration)
+                let secs = CMTimeGetSeconds(duration)
+                if secs.isFinite, secs > 0 {
+                    self.measuredMainVideoDuration = secs
+                    print("📏 Exact video duration: \(secs)s (api duration: \(apiDuration)s) item=\(ad.itemid.isEmpty ? ad.itemurl : ad.itemid)")
+                } else {
+                    print("📏 Exact video duration: invalid \(secs) (api duration: \(apiDuration)s)")
                 }
-                self.collapseLShapeToMainFullscreen(animated: true)
-                self.timer?.invalidate()
-                self.timer = nil
+            } catch {
+                print("📏 Exact video duration: load failed — \(error.localizedDescription) (api duration: \(apiDuration)s)")
+            }
+        }
+    }
+
+    /// Async load when player duration is still indefinite (common right after `AVPlayer(url:)`).
+    private func measureAndApplyVideoDurationForLShape() {
+        guard let companionDuration = lShapeCompanionDurationSeconds else { return }
+        if let secs = measuredMainVideoDuration ?? measuredMainVideoDurationSeconds() {
+            measuredMainVideoDuration = secs
+            updateShouldRepeatVideoForLShape(companionDuration: companionDuration)
+            return
+        }
+        guard let asset = activePlayer?.currentItem?.asset else { return }
+        Task { @MainActor in
+            do {
+                let duration = try await asset.load(.duration)
+                let secs = CMTimeGetSeconds(duration)
+                guard secs.isFinite, secs > 0 else { return }
+                guard self.lShapeCompanionDurationSeconds == companionDuration else { return }
+                self.measuredMainVideoDuration = secs
+                self.updateShouldRepeatVideoForLShape(companionDuration: companionDuration)
+            } catch {
+                print("⚠️ Could not measure video duration: \(error.localizedDescription)")
             }
         }
     }
@@ -775,8 +1019,9 @@ private extension AdPlayerViewModel {
     }
 
     /// Main creative failed at runtime.
-    /// L-shape: video is primary — if it fails, skip (do not hold white with placeholder images).
-    /// Single-item: white fullscreen for duration.
+    /// L-shape + healthy companions → branded fallback in main for companion duration.
+    /// L-shape + any corrupt companion → skip.
+    /// Single-item → branded fallback fullscreen for duration.
     func handleCorruptMainContent() {
         guard !isHandlingCorruptMain else { return }
         isHandlingCorruptMain = true
@@ -786,33 +1031,52 @@ private extension AdPlayerViewModel {
         timer = nil
         activePlayer?.pause()
         activePlayer = nil
-        showWhiteMainSlot = false
+        showWhiteMainSlot = true
         isMainSlotLoading = false
-        showsLShapeCompanions = false
         animateLShapeLayoutChange = false
 
-        let isLShape = (currentGroup?.ii.count ?? 0) >= 2
-        if isLShape {
-            print("⏭️ Main creative failed in L-shape — skipping group")
-            skipEntireCorruptGroup()
+        let group = currentGroup
+        let companions = group?.lShapeCompanions ?? []
+        let isLShape = (group?.ii.count ?? 0) >= 2
+
+        guard isLShape else {
+            showsLShapeCompanions = false
+            print("🖼️ Main corrupt — branded fallback fullscreen for group duration")
+            consecutiveCorruptSkips = 0
+            startGroupTimer()
+            isHandlingCorruptMain = false
             return
         }
 
-        showWhiteMainSlot = true
-        print("⬜ Main corrupt — white fullscreen for group duration")
-        consecutiveCorruptSkips = 0
-        startGroupTimer()
-        isHandlingCorruptMain = false
+        showsLShapeCompanions = false
+        Task {
+            await self.prefetchCompanions(companions)
+            guard currentGroup?.sequence == group?.sequence else {
+                self.isHandlingCorruptMain = false
+                return
+            }
+            if companions.contains(where: { self.isUnusableCompanion($0) }) {
+                print("⏭️ Corrupt video + broken L-shape — skipping group")
+                self.skipEntireCorruptGroup()
+                return
+            }
+            self.showsLShapeCompanions = true
+            self.showWhiteMainSlot = true
+            print("🖼️ Main video corrupt — branded fallback + L-shape for companion duration")
+            self.consecutiveCorruptSkips = 0
+            self.scheduleWhiteMainHoldThenAdvance(companions: companions)
+            self.isHandlingCorruptMain = false
+        }
     }
 
-    /// Hold white main + companions for max companion duration, then advance (no fullscreen scale).
+    /// Hold branded/fallback main + companions for max companion duration, then advance.
     func scheduleWhiteMainHoldThenAdvance(companions: [AdItemModel]) {
         timer?.invalidate()
         timer = nil
         let fromCompanions = companions.compactMap(\.duration).filter { $0 > 0 }.max()
         let fromGroup = currentGroup?.ii.compactMap(\.duration).filter { $0 > 0 }.max()
         let duration = fromCompanions ?? fromGroup ?? 20
-        print("⬜ White main hold for \(duration)s (L-shape duration), then next")
+        print("🖼️ Fallback main hold for \(duration)s (L-shape duration), then next")
         timer = Timer.scheduledTimer(withTimeInterval: TimeInterval(duration), repeats: false) { [weak self] _ in
             Task { @MainActor in
                 guard let self else { return }
@@ -843,6 +1107,10 @@ private extension AdPlayerViewModel {
 
     func playVideo(_ ad: AdItemModel) {
         clearVideoObservers()
+        activeVideoAd = ad
+        measuredMainVideoDuration = nil
+        videoEndEpoch &+= 1
+        let endEpoch = videoEndEpoch
 
         let cachedURL = localURLs[ad.itemurl]
         let remoteURL = ad.mediaURL
@@ -880,6 +1148,9 @@ private extension AdPlayerViewModel {
                     self.isMainSlotLoading = false
                     self.showWhiteMainSlot = false
                     self.trackImpression(for: ad)
+                    self.printExactVideoDuration(for: ad)
+                    // File duration is reliable once ready — decide L-shape video repeat from it.
+                    self.measureAndApplyVideoDurationForLShape()
                 }
             }
         }
@@ -896,18 +1167,64 @@ private extension AdPlayerViewModel {
             }
         }
 
+        installVideoEndObserver(for: ad, epoch: endEpoch)
+    }
+
+    /// Bind / re-bind end observer. `epoch` ignores stale ends after L-scale or advance.
+    private func installVideoEndObserver(for ad: AdItemModel?, epoch: UInt64) {
+        if let videoEndObserver {
+            NotificationCenter.default.removeObserver(videoEndObserver)
+            self.videoEndObserver = nil
+        }
+        guard let ad,
+              let item = activePlayer?.currentItem else { return }
+
         videoEndObserver = NotificationCenter.default.addObserver(
             forName: .AVPlayerItemDidPlayToEndTime,
             object: item,
             queue: .main
         ) { [weak self] _ in
             Task { @MainActor in
-                self?.timer?.invalidate()
-                self?.timer = nil
-                self?.clearVideoObservers()
-                // Track video completion
-                self?.trackCompletion(for: ad)
-                self?.transitionToNextItem()
+                guard let self else { return }
+                guard self.videoEndEpoch == epoch else {
+                    print("📐 Ignoring stale video-end (epoch \(epoch) ≠ \(self.videoEndEpoch))")
+                    return
+                }
+                guard !self.isFinishingLShapeGroup else { return }
+
+                // Still in L-shape: video hit a natural end — never scale; restart or advance.
+                if self.showsLShapeCompanions {
+                    if self.shouldRepeatVideoWhileLShape, let player = self.activePlayer {
+                        let holdFilled: Bool = {
+                            guard let C = self.lShapeCompanionDurationSeconds,
+                                  let started = self.lShapeHoldStartedAt else { return false }
+                            return Date().timeIntervalSince(started) + Self.lShapeDurationBufferSeconds >= Double(C)
+                        }()
+                        if !holdFilled {
+                            print("🔁 Restarting video to fill L-shape image duration")
+                            player.seek(to: .zero)
+                            player.play()
+                            return
+                        }
+                    }
+                    // At end during L-shape (equal / filled repeats) — never scale.
+                    print("📐 Video ended during L-shape — next item (no scale)")
+                    if let C = self.lShapeCompanionDurationSeconds, let group = self.currentGroup {
+                        for imageAd in group.ii where imageAd.assettype.lowercased() == "image" {
+                            guard !self.isUnusableCompanion(imageAd) else { continue }
+                            self.trackImageViewComplete(for: imageAd, duration: C)
+                        }
+                    }
+                    self.finishLShapeAndAdvanceToNext()
+                    return
+                }
+
+                // After L-shape removal (scaled fullscreen): finish when video ends.
+                self.timer?.invalidate()
+                self.timer = nil
+                self.clearVideoObservers()
+                self.trackCompletion(for: ad)
+                self.transitionToNextItem()
             }
         }
     }
@@ -1002,6 +1319,11 @@ private extension AdPlayerViewModel {
             return
         }
 
+        guard NetworkMonitor.shared.canMakeNetworkCalls else {
+            print("📵 Image network load skipped — no internet:", ad.itemurl)
+            return
+        }
+
         do {
             var request = URLRequest(url: remoteURL)
             request.timeoutInterval = timeout
@@ -1081,6 +1403,10 @@ private extension AdPlayerViewModel {
     }
 
     func syncAds(with screenId: String) {
+        guard NetworkMonitor.shared.canMakeNetworkCalls else {
+            print("📵 Quest sync skipped — no internet")
+            return
+        }
         reqNum += 1
         print("🌐 Running periodic API sync... with reqNum: \(reqNum)")
 
@@ -1088,7 +1414,22 @@ private extension AdPlayerViewModel {
             do {
                 let response = try await APIService.shared.fetchItemSeqInfo(screenId: screenId,
                                                                             reqNum: reqNum)
-                print("🔄 Sync data fetched: \(response.groupedAds.count) groups")
+                print("🔄 Sync data fetched: \(response.groupedAds.count) groups status=\(response.status ?? "nil")")
+
+                if response.isNoDataFound {
+                    print("⏳ Quest sync NO_DATA_FOUND — waiting for content")
+                    PlaylistCacheService.shared.clearCache()
+                    enterWaitingForPlayableContent()
+                    NotificationCenter.default.post(
+                        name: .questPlaylistApplied,
+                        object: nil,
+                        userInfo: ["groupedAds": [AdSequenceGroup]()]
+                    )
+                    consecutiveSyncFailures = 0
+                    isUsingFallbackContent = false
+                    HeartbeatAPI.shared.updateLastSyncTime()
+                    return
+                }
                 
                 // Only replace playlist + purge cache when ≥1 playable item arrives.
                 let playablePending = response.groupedAds.displayableGroups()

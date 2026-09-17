@@ -75,6 +75,10 @@ struct TickerBannerView: View {
             return
         }
         Task {
+            guard NetworkMonitor.shared.canMakeNetworkCalls else {
+                print("📵 Logo load skipped — no internet")
+                return
+            }
             do {
                 var request = URLRequest(url: url)
                 request.cachePolicy = .reloadIgnoringLocalCacheData

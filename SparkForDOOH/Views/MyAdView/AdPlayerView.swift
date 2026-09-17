@@ -36,7 +36,7 @@ struct AdPlayerView: View {
                     let showWhiteMain = viewModel.showWhiteMainSlot
                     let showMainLoader = viewModel.isMainSlotLoading
 
-                    // Video (or white/loader main slot) + companions while L-shape is active.
+                    // Video (or branded-fallback/loader main slot) + companions while L-shape is active.
                     let showVideoCompanions = (playableMainVideo || unplayableMainVideo || showWhiteMain || showMainLoader)
                         && hasCompanionSlots && showLShape
                     // Image-only layouts (no video slot in group) — collapse when showLShape is false.
@@ -78,8 +78,7 @@ struct AdPlayerView: View {
                             mainSlotLoader(width: geo.size.width, height: geo.size.height)
                                 .position(x: geo.size.width / 2, y: geo.size.height / 2)
                         } else if showWhiteMain {
-                            Color.white
-                                .frame(width: geo.size.width, height: geo.size.height)
+                            corruptMainFallback(width: geo.size.width, height: geo.size.height)
                                 .position(x: geo.size.width / 2, y: geo.size.height / 2)
                         } else {
                             slotContent(for: companions[0], width: geo.size.width, height: geo.size.height)
@@ -87,7 +86,7 @@ struct AdPlayerView: View {
                         }
                     } else {
                         ZStack(alignment: .topLeading) {
-                            // MARK: - Main (loader / white / video / lead image)
+                            // MARK: - Main (loader / branded fallback / video / lead image)
                             if showMainLoader {
                                 mainSlotLoader(width: videoWidth, height: videoHeight)
                                     .position(
@@ -99,8 +98,7 @@ struct AdPlayerView: View {
                                         value: showVideoCompanions
                                     )
                             } else if showWhiteMain {
-                                Color.white
-                                    .frame(width: videoWidth, height: videoHeight)
+                                corruptMainFallback(width: videoWidth, height: videoHeight)
                                     .position(
                                         x: videoWidth / 2,
                                         y: showVideoCompanions ? (videoHeight / 2) : screenHeight / 2
@@ -172,6 +170,16 @@ struct AdPlayerView: View {
         .onChange(of: listVM.groupedAds) { newGroups in
             viewModel.startPlayback(with: newGroups)
         }
+        .onReceive(NotificationCenter.default.publisher(for: .questNoDataFound)) { _ in
+            viewModel.enterWaitingForPlayableContent()
+        }
+        .onReceive(NotificationCenter.default.publisher(for: .networkDidBecomeReachable)) { _ in
+            HeartbeatAPI.shared.startHeartbeat()
+            HeartbeatAPI.shared.kickHeartbeatNow()
+            if !HeartbeatAPI.shared.isAwaitingActiveStatus {
+                viewModel.resumePlayback()
+            }
+        }
         .onAppear {
             // Prevent screensaver/sleep while playing ads
             UIApplication.shared.isIdleTimerDisabled = true
@@ -230,6 +238,17 @@ struct AdPlayerView: View {
         }
     }
     
+    // MARK: - Branded fallback when main video is corrupt (replaces blank white)
+    private func corruptMainFallback(width: CGFloat, height: CGFloat) -> some View {
+        Image("lshape_video_fallback")
+            .resizable()
+            .aspectRatio(contentMode: .fill)
+            .frame(width: width, height: height)
+            .clipped()
+            .allowsHitTesting(false)
+            .accessibilityHidden(true)
+    }
+
     // MARK: - Main slot buffering (avoids blank white while media prepares)
     private func mainSlotLoader(width: CGFloat, height: CGFloat) -> some View {
         ZStack {

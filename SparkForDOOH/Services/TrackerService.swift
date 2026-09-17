@@ -14,9 +14,17 @@ final class TrackerService {
     /// Fire a list of tracker URLs (best-effort, no retries).
     func fire(urls: [String]) {
         Task.detached(priority: .background) {
+            guard NetworkMonitor.shared.canMakeNetworkCalls else {
+                print("📵 Trackers skipped — no internet")
+                return
+            }
             await TVRemoteConfigService.waitUntilLaunchConfigNetworkFinished()
             let nowMs = Int(Date().timeIntervalSince1970 * 1000)
             for urlString in urls {
+                guard NetworkMonitor.shared.canMakeNetworkCalls else {
+                    print("📵 Trackers aborted — lost internet")
+                    return
+                }
                 let resolved = urlString.replacingOccurrences(of: "{{EVENT_CLIENT_TIME}}", with: "\(nowMs)")
                 guard let url = URL(string: resolved) else { continue }
                 var request = URLRequest(url: url)

@@ -24,6 +24,8 @@ final class ActivationViewModel: ObservableObject {
     private var expirationTimer: Timer?
     private var countdownTimer: Timer?
     private let codeExpirationTime: TimeInterval = 15 * 60 // 15 minutes
+    /// Prevents timer + poll timeout from both running expiry handling.
+    private var isResolvingExpiry = false
     
     deinit {
         DispatchQueue.main.async { [weak self] in
@@ -40,6 +42,7 @@ final class ActivationViewModel: ObservableObject {
     
     private func startExpirationTimer() {
         stopTimers()
+        isResolvingExpiry = false
         isCodeExpired = false
         timeRemaining = Int(codeExpirationTime)
         
@@ -64,6 +67,8 @@ final class ActivationViewModel: ObservableObject {
     }
     
     private func handleCodeExpired() {
+        guard !isResolvingExpiry else { return }
+        isResolvingExpiry = true
         stopTimers()
         print("⏰ Activation code expired - checking status...")
         Task { @MainActor in
@@ -79,6 +84,7 @@ final class ActivationViewModel: ObservableObject {
                     )
                     print("📢 Activated on expiry check: \(data.status)")
                     isActivated = true
+                    isLoading = false
                 } else if status == "INACTIVE" {
                     enterInactivationForReregister()
                 } else if status == "PENDING" {
@@ -101,6 +107,11 @@ final class ActivationViewModel: ObservableObject {
     }
 
     func activateDevice() {
+        guard NetworkMonitor.shared.canMakeNetworkCalls else {
+            print("📵 Activation skipped — no internet")
+            isLoading = false
+            return
+        }
         isLoading = true
         isActivated = false
         isCodeExpired = false
@@ -173,13 +184,25 @@ final class ActivationViewModel: ObservableObject {
                     enterInactivationForReregister()
                 }
             } catch {
-                if let appErr = error as? AppError, case .screenDeactivated = appErr {
-                    // Poll API throws this for status INACTIVE → re-register flow.
-                    enterInactivationForReregister()
+                if let appErr = error as? AppError {
+                    switch appErr {
+                    case .screenDeactivated:
+                        // Poll API throws this for status INACTIVE → re-register flow.
+                        enterInactivationForReregister()
+                    case .activationTimeout:
+                        // Code window ended without ACTIVE — same path as 15-min expiry.
+                        print("⏰ Activation poll timed out after code window")
+                        handleCodeExpired()
+                    default:
+                        print("❌ Activation poll failed:", appErr)
+                        self.isLoading = false
+                    }
                 } else {
                     let appError = AppError.from(error)
                     print("❌ Activation poll failed:", appError)
+                    self.isLoading = false
                 }
+                return
             }
             self.isLoading = false
         }

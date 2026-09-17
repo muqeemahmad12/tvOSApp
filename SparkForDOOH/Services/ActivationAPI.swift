@@ -14,6 +14,7 @@ final class ActivationAPI {
     private init() {}
 
     func requestActivation(payload: ActivationRequest) async throws -> ActivationData {
+        try NetworkMonitor.shared.requireOnline()
         await TVRemoteConfigService.waitUntilLaunchConfigNetworkFinished()
         let url = TVRemoteConfigStore.shared.activationURL(pathComponents: "dooh", "device", "activation", "request")
 

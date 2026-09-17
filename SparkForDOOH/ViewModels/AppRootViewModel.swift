@@ -17,11 +17,11 @@ final class AppRootViewModel: ObservableObject {
 
     @Published var phase: Phase
 
-    /// True while heartbeat reports deactivated (API INACTIVE) — show Screen Deactivated and wait for ACTIVE.
+    /// True while heartbeat reports `INACTIVE` — show Screen Deactivated and wait for ACTIVE.
     /// Credentials and playback cache are kept.
     @Published var isScreenDeactivated = false
 
-    /// True while Screen Inactivated is showing before re-registration.
+    /// True while heartbeat reports `DELETED` — show Screen Inactivated (re-register).
     @Published var isScreenInactivated = false
 
     /// Bumps when forcing a fresh activation flow so `ActivationView` remounts.
@@ -170,16 +170,16 @@ final class AppRootViewModel: ObservableObject {
         return s.trimmingCharacters(in: .whitespacesAndNewlines)
     }
     
-    /// Handle screen deactivation (API screenStatus INACTIVE) — show Screen Deactivated; keep credentials, playlist cache, and heartbeat.
+    /// Handle heartbeat `INACTIVE` — show Screen Deactivated; keep credentials, playlist cache, and heartbeat until ACTIVE.
     func handleScreenDeactivation() {
         guard !isScreenDeactivated else { return }
         guard !isScreenInactivated else { return }
-        print("💓 Heartbeat deactivated — Screen Deactivated (cache kept, waiting for ACTIVE)")
+        print("💓 Heartbeat INACTIVE — Screen Deactivated (cache kept, waiting for ACTIVE)")
         isScreenDeactivated = true
         HeartbeatAPI.shared.startHeartbeat()
     }
 
-    /// Heartbeat ACTIVE after deactivation — dismiss overlay; caller resumes ads and hits quest once.
+    /// Heartbeat ACTIVE after INACTIVE — dismiss overlay; caller resumes ads and hits quest once.
     func handleScreenReactivation() {
         guard isScreenDeactivated else { return }
         print("💓 Heartbeat ACTIVE — leaving Screen Deactivated, resume playlist + one quest fetch")
@@ -189,16 +189,18 @@ final class AppRootViewModel: ObservableObject {
         }
     }
 
-    /// Screen inactivated — stop on Screen Inactivated, clear credentials/cache.
-    /// Re-registration happens after app restart (no secureKey → activation).
+    /// Handle heartbeat `DELETED` — show Screen Inactivated; clear credentials + caches.
     func handleScreenInactivation() {
         guard !isScreenInactivated else { return }
-        print("🔒 Screen Inactivated — credentials cleared; stay until re-register / restart")
+        print("🔒 Heartbeat DELETED — Screen Inactivated (credentials/caches cleared)")
         isScreenDeactivated = false
         isScreenInactivated = true
         Self.clearActivationCredentials()
         Self.clearPlaybackCaches()
+        Self.updateTickerMessage("")
+        Self.updateLogoUrl("")
         HeartbeatAPI.shared.stopHeartbeat()
+        HeartbeatAPI.shared.resetInitialHeartbeatGate()
     }
 
     /// Clear secureKey + deviceCode so the device can re-register / re-login.

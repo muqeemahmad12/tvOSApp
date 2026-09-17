@@ -124,9 +124,12 @@ private struct LandingGateView: View {
                 }
             }
             
-            if tvConfigReady, !networkMonitor.isConnected, !isReady, hasSecureKey, !showActivation {
+            // Pre-player gate only (no cached ads playing yet). Once RootView is ready,
+            // Connection Lost is gated on empty playlist/cache in RootView.
+            if tvConfigReady, !networkMonitor.isConnected, !isReady {
                 ConnectionLostView()
                     .transition(.opacity)
+                    .zIndex(20)
             }
         }
         .onReceive(NotificationCenter.default.publisher(for: .initialHeartbeatSucceeded)) { _ in
@@ -140,7 +143,12 @@ private struct LandingGateView: View {
             showActivation = true
         }
         .onChange(of: networkMonitor.isConnected) { connected in
-            if connected && !isReady && hasSecureKey && !showActivation {
+            guard connected, !isReady else { return }
+            print("🌐 Landing gate — network restored, resuming immediately")
+            if showActivation {
+                // ActivationView also retries; keep gate status informative.
+                status = "Connection restored. Retrying registration…"
+            } else if hasSecureKey {
                 status = "Connection restored. Retrying heartbeat…"
                 HeartbeatAPI.shared.resetInitialHeartbeatGate()
                 HeartbeatAPI.shared.startInitialHeartbeat()

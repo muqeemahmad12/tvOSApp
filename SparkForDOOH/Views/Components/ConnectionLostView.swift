@@ -11,49 +11,53 @@ import UIKit
 struct ConnectionLostView: View {
     var body: some View {
         ZStack {
-            // Background image
             Image("registration_bg")
                 .resizable()
                 .scaledToFill()
                 .ignoresSafeArea()
-            
-            HStack(alignment: .center, spacing: 32) {
-                VStack(alignment: .leading, spacing: 16) {
-                    Text("Connection Lost")
-                        .font(.system(size: 65, weight: .semibold, design: .default))
-                        .foregroundColor(Color(red: 0.0, green: 0.45, blue: 0.91))
-                    
-                    Text("This screen is currently offline and can’t download or play updated content.")
-                        .font(.system(size: 30, weight: .regular))
-                        .foregroundColor(Color(red: 0.32, green: 0.36, blue: 0.41))
-                        .lineSpacing(4)
-                        .multilineTextAlignment(.leading)
-                        .lineLimit(3)
-                        .frame(maxWidth: 920, alignment: .leading)
-                        .padding(.trailing, 8)
-                        .padding(.bottom, 100) // extra gap before description
-                    
-                    Text("Please check power and internet (Wi-Fi/Ethernet) for this device. If the network is stable, restart the screen/app and confirm the connection is restored. If the issue continues, contact your IT to verify firewall/network access and reconnect this screen.")
-                        .font(.system(size: 30, weight: .regular))
-                        .foregroundColor(Color(red: 0.32, green: 0.36, blue: 0.41))
-                        .lineSpacing(4)
-                        .multilineTextAlignment(.leading)
-                        .lineLimit(3)
-                        .frame(maxWidth: 980, alignment: .leading)
+
+            GeometryReader { geo in
+                let isWide = geo.size.width > geo.size.height
+                let illustrationSide = min(geo.size.height * 0.48, geo.size.width * 0.30)
+                let textMaxWidth = min(geo.size.width * 0.52, 980)
+
+                HStack(alignment: .center, spacing: isWide ? 40 : 24) {
+                    VStack(alignment: .leading, spacing: 20) {
+                        Text("Connection Lost")
+                            .font(.system(size: 56, weight: .semibold))
+                            .foregroundColor(Color(red: 0.0, green: 0.45, blue: 0.91))
+                            .fixedSize(horizontal: false, vertical: true)
+
+                        Text("This screen is currently offline and can’t download or play updated content.")
+                            .font(.system(size: 28, weight: .regular))
+                            .foregroundColor(Color(red: 0.32, green: 0.36, blue: 0.41))
+                            .lineSpacing(4)
+                            .multilineTextAlignment(.leading)
+                            .fixedSize(horizontal: false, vertical: true)
+
+                        Text("Please check power and internet (Wi-Fi/Ethernet) for this device. If the network is stable, restart the screen/app and confirm the connection is restored. If the issue continues, contact your IT to verify firewall/network access and reconnect this screen.")
+                            .font(.system(size: 26, weight: .regular))
+                            .foregroundColor(Color(red: 0.32, green: 0.36, blue: 0.41))
+                            .lineSpacing(4)
+                            .multilineTextAlignment(.leading)
+                            .fixedSize(horizontal: false, vertical: true)
+                            .padding(.top, 36)
+                    }
+                    .frame(maxWidth: textMaxWidth, alignment: .leading)
+                    .layoutPriority(1)
+                    .padding(.leading, 60)
+
+                    Spacer(minLength: 16)
+
+                    Image("connection_lost")
+                        .resizable()
+                        .renderingMode(.original)
+                        .aspectRatio(contentMode: .fit)
+                        .frame(width: illustrationSide, height: illustrationSide)
+                        .padding(.trailing, 80)
                 }
-                .frame(maxWidth: .infinity, alignment: .leading)
-                .padding(.leading, 60)
-                
-                Spacer()
-                
-                Image("connection_lost")
-                    .resizable()
-                    .aspectRatio(contentMode: .fit)
-                    .frame(maxWidth: 560, maxHeight: 438) // keeps 1122x876 aspect (~1.28:1)
-                    .padding(.trailing, 80)
+                .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .center)
             }
-            .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .center)
-            .padding(.top, -100) // shift entire stack upward
         }
         .onAppear {
             SentryService.shared.track(SentryAnalyticsEvent.errorScreenConnectionLost, attributes: [:])
@@ -65,4 +69,3 @@ struct ConnectionLostView: View {
 #Preview {
     ConnectionLostView()
 }
-

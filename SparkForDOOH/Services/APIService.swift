@@ -16,6 +16,7 @@ final class APIService {
 
     /// Fetch the ad item sequence info for a given screen.
     func fetchItemSeqInfo(screenId: String, reqNum: Int) async throws -> ItemSeqInfoResponse {
+        try NetworkMonitor.shared.requireOnline()
         await TVRemoteConfigService.waitUntilLaunchConfigNetworkFinished()
         let url = TVRemoteConfigStore.shared.drsQuestURL()
 

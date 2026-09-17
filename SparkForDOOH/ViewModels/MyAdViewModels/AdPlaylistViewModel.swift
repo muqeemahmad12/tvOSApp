@@ -107,6 +107,25 @@ final class AdPlaylistViewModel: ObservableObject {
                                                                             reqNum: reqNum)
                 }
 
+                if response.isNoDataFound {
+                    print("⏳ Quest status NO_DATA_FOUND — clearing playlist and waiting for content")
+                    groupedAds = []
+                    isUsingCachedPlaylist = false
+                    PlaylistCacheService.shared.clearCache()
+                    SentryService.shared.track(
+                        SentryAnalyticsEvent.playlistEmpty,
+                        attributes: ["used_cache": "false", "reason": "NO_DATA_FOUND"]
+                    )
+                    SentryService.shared.breadcrumb(
+                        category: "playlist",
+                        message: "quest_no_data_found",
+                        data: [:]
+                    )
+                    NotificationCenter.default.post(name: .questNoDataFound, object: nil)
+                    isLoading = false
+                    return
+                }
+
                 let groups = response.groupedAds.displayableGroups()
                 if groups.isEmpty {
                     // No playable items yet — keep current / cached playlist unchanged (no wipe).

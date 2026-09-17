@@ -10,6 +10,7 @@ import Foundation
 /// Unified error type used across networking (DRS, activation, polling).
 enum AppError: Error, LocalizedError {
     case network(underlying: Error)
+    case offline
     case server(message: String)
     case decoding
     case invalidResponse
@@ -21,6 +22,8 @@ enum AppError: Error, LocalizedError {
         switch self {
         case .network:
             return "Unable to reach the server. Please check the network connection and try again."
+        case .offline:
+            return "No internet connection. Waiting to reconnect…"
         case .server(let message):
             return message.isEmpty ? "The server reported an error. Please try again later." : message
         case .decoding:

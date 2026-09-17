@@ -14,6 +14,7 @@ final class ActivationPollAPI {
     private init() {}
 
     func pollOnce(deviceCode: String) async throws -> ActivationPollData {
+        try NetworkMonitor.shared.requireOnline()
         await TVRemoteConfigService.waitUntilLaunchConfigNetworkFinished()
         let url = TVRemoteConfigStore.shared.activationURL(pathComponents: "dooh", "device", "activation", "poll")
 
@@ -55,26 +56,35 @@ final class ActivationPollAPI {
     }
 
     /// Continuous polling with simple retry/backoff until activated or timeout.
+    /// Default timeout matches the 15-minute activation-code lifetime.
     func pollUntilActivated(
         deviceCode: String,
-        maxAttempts: Int = 20,
+        timeoutSeconds: TimeInterval = 15 * 60,
         delaySeconds: UInt64 = 15
     ) async throws -> ActivationPollData {
+        let deadline = Date().addingTimeInterval(timeoutSeconds)
         var attempt = 0
 
-        while attempt < maxAttempts {
+        while Date() < deadline {
+            // Do not burn the timeout while offline — wait for connectivity.
+            if !NetworkMonitor.shared.canMakeNetworkCalls {
+                print("📵 Activation poll paused — no internet")
+                try? await Task.sleep(nanoseconds: delaySeconds * 1_000_000_000)
+                continue
+            }
+
             attempt += 1
 
             do {
-            let result = try await pollOnce(deviceCode: deviceCode)
-            let status = result.status.uppercased()
+                let result = try await pollOnce(deviceCode: deviceCode)
+                let status = result.status.uppercased()
 
-            if status == "ACTIVE" || status == "ACTIVATED" {
-                return result
-            }
-            if status == "INACTIVE" {
-                throw AppError.screenDeactivated
-            }
+                if status == "ACTIVE" || status == "ACTIVATED" {
+                    return result
+                }
+                if status == "INACTIVE" {
+                    throw AppError.screenDeactivated
+                }
             } catch {
                 if let appErr = error as? AppError, case .screenDeactivated = appErr {
                     throw appErr

@@ -207,6 +207,10 @@ enum TVRemoteConfigService {
     }
 
     private static func tryFetchAndApplyConfig() async -> Bool {
+        guard NetworkMonitor.shared.canMakeNetworkCalls else {
+            print("📵 TV remote config skipped — no internet")
+            return false
+        }
         var request = URLRequest(url: configURL)
         request.httpMethod = "GET"
         request.timeoutInterval = 20
@@ -250,6 +254,12 @@ enum TVRemoteConfigService {
         var attempt = 0
         while true {
             attempt += 1
+            if !NetworkMonitor.shared.canMakeNetworkCalls {
+                print("📵 TV remote config waiting for internet (attempt \(attempt))…")
+                try? await Task.sleep(nanoseconds: UInt64(delaySeconds * 1_000_000_000))
+                delaySeconds = min(delaySeconds * 1.35, maxDelay)
+                continue
+            }
             if await tryFetchAndApplyConfig() {
                 signalLaunchConfigSucceeded()
                 return

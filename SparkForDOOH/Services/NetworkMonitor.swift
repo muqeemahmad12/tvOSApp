@@ -47,7 +47,10 @@ final class NetworkMonitor: ObservableObject {
                     if connected {
                         self.applyStatus(connected: true, path: path, reason: "\(reasonPrefix)NWPath")
                     } else {
-                        self.singleProbe(path: path, reason: "\(reasonPrefix)NWPathUnsatisfiedProbe")
+                        // Instant offline for Connection Lost — never wait for probe/API.
+                        self.applyStatus(connected: false, path: path, reason: "\(reasonPrefix)NWPathUnsatisfied")
+                        // Background probe may restore online if the link recovers without another path event.
+                        self.probeForOnlineRecovery(path: path, reason: "\(reasonPrefix)NWPathRecoveryProbe")
                     }
                 }
             }
@@ -66,14 +69,28 @@ final class NetworkMonitor: ObservableObject {
     func refreshConnectivity() {
         evaluateCurrentPath(reason: "ManualRefresh")
     }
+
+    /// Throws `AppError.offline` when there is no connectivity — call before outbound APIs.
+    func requireOnline(caller: String = #function) throws {
+        guard isConnected else {
+            print("📵 Skip API (\(caller)) — no internet")
+            throw AppError.offline
+        }
+    }
+
+    /// Non-throwing check for fire-and-forget callers (heartbeat timer, trackers).
+    var canMakeNetworkCalls: Bool { isConnected }
     
-    private func singleProbe(path: NWPath, reason: String) {
+    /// Probe only to recover *to* online. Never used to delay marking offline.
+    private func probeForOnlineRecovery(path: NWPath, reason: String) {
         Task.detached { [weak self] in
             guard let self = self else { return }
             let success = await self.performProbe()
             await MainActor.run {
-                print("🛰️ Probe result: \(success ? "online" : "offline") [\(reason)]")
-                self.applyStatus(connected: success, path: path, reason: success ? reason : "\(reason)Failed")
+                print("🛰️ Recovery probe: \(success ? "online" : "still offline") [\(reason)]")
+                if success {
+                    self.applyStatus(connected: true, path: path, reason: reason)
+                }
             }
         }
     }
@@ -81,14 +98,24 @@ final class NetworkMonitor: ObservableObject {
     private func startPeriodicProbe() {
         guard periodicProbeTask == nil else { return }
         periodicProbeTask = Task { [weak self] in
+            // Probe immediately, then every ~2s while offline so resume feels snappy.
             while let self, !Task.isCancelled {
+                let path = self.primaryMonitor.currentPath
+                if path.status == .satisfied {
+                    await MainActor.run {
+                        self.applyStatus(connected: true, path: path, reason: "PeriodicPathSatisfied")
+                    }
+                    return
+                }
                 let success = await self.performProbe()
                 await MainActor.run {
                     print("🔁 Periodic probe: \(success ? "online" : "offline")")
-                    self.applyStatus(connected: success, path: self.primaryMonitor.currentPath, reason: success ? "PeriodicProbe" : "PeriodicProbeFailed")
+                    if success {
+                        self.applyStatus(connected: true, path: self.primaryMonitor.currentPath, reason: "PeriodicProbe")
+                    }
                 }
-                // If we just confirmed online, back off longer.
-                try? await Task.sleep(nanoseconds: success ? 12_000_000_000 : 6_000_000_000)
+                if success { return }
+                try? await Task.sleep(nanoseconds: 2_000_000_000)
             }
         }
     }
@@ -98,40 +125,50 @@ final class NetworkMonitor: ObservableObject {
         periodicProbeTask = nil
     }
     
+    /// Race TCP probes in parallel — first success wins (faster reconnect).
     private func performProbe() async -> Bool {
-        // Quick TCP reachability first across multiple targets to avoid slow HTTP timeouts on blocked hosts.
-        for (host, port) in tcpTargets {
-            let tcpQueue = DispatchQueue(label: "com.doceree.sparkfordooh.tcpprobe.\(host)")
-            let tcpSucceeded: Bool = await withCheckedContinuation { continuation in
-                var resumed = false
-                let resume: (Bool) -> Void = { value in
-                    guard !resumed else { return }
-                    resumed = true
-                    continuation.resume(returning: value)
-                }
-                let connection = NWConnection(host: host, port: port, using: .tcp)
-                connection.stateUpdateHandler = { state in
-                    switch state {
-                    case .ready:
-                        print("🛰️ TCP probe succeeded (\(host):\(port))")
-                        connection.cancel()
-                        resume(true)
-                    case .failed, .cancelled:
-                        resume(false)
-                    default:
-                        break
-                    }
-                }
-                connection.start(queue: tcpQueue)
-                tcpQueue.asyncAfter(deadline: .now() + 3) { // allow Wi-Fi to finish associating
-                    resume(false)
-                    connection.cancel()
+        await withTaskGroup(of: Bool.self) { group in
+            for (host, port) in tcpTargets {
+                group.addTask { await self.tcpProbe(host: host, port: port, timeoutSeconds: 0.8) }
+            }
+            for await ok in group {
+                if ok {
+                    group.cancelAll()
+                    return true
                 }
             }
-            if tcpSucceeded { return true }
+            return false
         }
-        
-        return false
+    }
+
+    private func tcpProbe(host: NWEndpoint.Host, port: NWEndpoint.Port, timeoutSeconds: Double) async -> Bool {
+        let tcpQueue = DispatchQueue(label: "com.doceree.sparkfordooh.tcpprobe.\(host)")
+        return await withCheckedContinuation { continuation in
+            var resumed = false
+            let resume: (Bool) -> Void = { value in
+                guard !resumed else { return }
+                resumed = true
+                continuation.resume(returning: value)
+            }
+            let connection = NWConnection(host: host, port: port, using: .tcp)
+            connection.stateUpdateHandler = { state in
+                switch state {
+                case .ready:
+                    print("🛰️ TCP probe succeeded (\(host):\(port))")
+                    connection.cancel()
+                    resume(true)
+                case .failed, .cancelled:
+                    resume(false)
+                default:
+                    break
+                }
+            }
+            connection.start(queue: tcpQueue)
+            tcpQueue.asyncAfter(deadline: .now() + timeoutSeconds) {
+                resume(false)
+                connection.cancel()
+            }
+        }
     }
     
     /// Allow other services (e.g., successful API calls) to force mark online.
@@ -149,7 +186,9 @@ final class NetworkMonitor: ObservableObject {
             if connected {
                 self.applyStatus(connected: true, path: path, reason: reason)
             } else {
-                self.singleProbe(path: path, reason: "\(reason)Probe")
+                // Instant offline for UI; probe only for soft recovery.
+                self.applyStatus(connected: false, path: path, reason: "\(reason)Unsatisfied")
+                self.probeForOnlineRecovery(path: path, reason: "\(reason)RecoveryProbe")
             }
         }
     }
@@ -175,6 +214,8 @@ final class NetworkMonitor: ObservableObject {
                     attributes: ["reason": reasonTag]
                 )
                 SentryService.shared.breadcrumb(category: "network", message: "connectivity_restored", data: ["reason": reasonTag])
+                // Let screens resume APIs immediately (quest / heartbeat / activation).
+                NotificationCenter.default.post(name: .networkDidBecomeReachable, object: nil)
             }
         }
         if connected {
@@ -198,3 +239,7 @@ final class NetworkMonitor: ObservableObject {
     }
 }
 
+extension Notification.Name {
+    /// Posted when `NetworkMonitor` flips from offline → online.
+    static let networkDidBecomeReachable = Notification.Name("com.doceree.sparkfordooh.networkDidBecomeReachable")
+}

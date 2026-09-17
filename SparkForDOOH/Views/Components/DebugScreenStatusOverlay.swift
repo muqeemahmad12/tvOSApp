@@ -2,15 +2,15 @@
 //  DebugScreenStatusOverlay.swift
 //  SparkForDOOH
 //
-//  DEBUG-only controls to manually toggle Deactivate / Inactivate / ACTIVE for local testing.
-//  tvOS: use remote Play/Pause to toggle Deactivate ↔ ACTIVE, or focus the buttons.
+//  DEBUG-only controls to manually toggle INACTIVE / DELETED / ACTIVE for local testing.
+//  tvOS: use remote Play/Pause to toggle INACTIVE ↔ ACTIVE, or focus the buttons.
 //
 
 #if DEBUG
 import SwiftUI
 
 /// Floating DEBUG controls. Prefer **Play/Pause** on the Siri Remote to toggle
-/// Deactivate ↔ ACTIVE — on-screen buttons are also focusable when the remote can reach them.
+/// INACTIVE ↔ ACTIVE — on-screen buttons are also focusable when the remote can reach them.
 struct DebugScreenStatusOverlay: View {
     @FocusState private var focused: DebugFocus?
     @Namespace private var focusScope
@@ -23,7 +23,7 @@ struct DebugScreenStatusOverlay: View {
 
     var body: some View {
         VStack(spacing: 12) {
-            Text("DEBUG · Play/Pause toggles Deactivate ↔ ACTIVE")
+            Text("DEBUG · Play/Pause toggles INACTIVE ↔ ACTIVE")
                 .font(.caption2)
                 .foregroundStyle(.secondary)
 
@@ -31,7 +31,7 @@ struct DebugScreenStatusOverlay: View {
                 Button {
                     HeartbeatAPI.shared.debugForceDeactivate()
                 } label: {
-                    Text("Force Deactivate")
+                    Text("Force INACTIVE")
                         .frame(minWidth: 180, minHeight: 44)
                 }
                 .buttonStyle(.borderedProminent)
@@ -42,7 +42,7 @@ struct DebugScreenStatusOverlay: View {
                 Button {
                     HeartbeatAPI.shared.debugForceInactivate()
                 } label: {
-                    Text("Force Inactivate")
+                    Text("Force DELETED")
                         .frame(minWidth: 180, minHeight: 44)
                 }
                 .buttonStyle(.borderedProminent)
@@ -101,7 +101,7 @@ struct DebugScreenStatusOverlay: View {
             print("🧪 DEBUG Play/Pause → Force ACTIVE")
             HeartbeatAPI.shared.debugForceActive()
         } else {
-            print("🧪 DEBUG Play/Pause → Force Deactivate")
+            print("🧪 DEBUG Play/Pause → Force INACTIVE")
             HeartbeatAPI.shared.debugForceDeactivate()
         }
     }

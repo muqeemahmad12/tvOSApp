@@ -52,6 +52,14 @@ struct ActivationView: View {
                         .padding(.bottom, 30)
                 }
             }
+
+            // Registration/login has no playlist to play — show Connection Lost when offline.
+            // (Playback with cache never mounts this view.)
+            if !networkMonitor.isConnected, !vm.isScreenInactivated {
+                ConnectionLostView()
+                    .transition(.opacity)
+                    .zIndex(20)
+            }
         }
         .onAppear {
             UIApplication.shared.isIdleTimerDisabled = true
@@ -61,7 +69,11 @@ struct ActivationView: View {
                 attributes: [:]
             )
             SentryService.shared.breadcrumb(category: "lifecycle", message: "activation_flow_visible", data: [:])
-            vm.activateDevice()
+            if networkMonitor.isConnected {
+                vm.activateDevice()
+            } else {
+                print("📵 Activation onAppear skipped — no internet (Connection Lost shown)")
+            }
         }
         .onChange(of: vm.isActivated) { activated in
             if activated {
@@ -70,6 +82,7 @@ struct ActivationView: View {
             }
         }
         .onChange(of: networkMonitor.isConnected) { connected in
+            // If poll is already in flight (isLoading), it resumes itself once online.
             if connected && !vm.isActivated && !vm.isLoading && !vm.isScreenInactivated {
                 print("🌐 Network restored during activation - retrying activation/poll")
                 vm.activateDevice()

@@ -2,7 +2,7 @@
 //  ScreenInactivatedView.swift
 //  SparkForDOOH
 //
-//  Shown when the screen must re-register / re-login (activation failed / inactivated).
+//  Shown when heartbeat reports DELETED — must re-register / re-login.
 //
 
 import SwiftUI
@@ -22,7 +22,7 @@ struct ScreenInactivatedView: View {
 
                 HStack(alignment: .center, spacing: isWide ? 48 : 24) {
                     VStack(alignment: .leading, spacing: 20) {
-                        Text("Screen Inactivated")
+                        Text("Screen Deactivated")
                             .font(.system(size: 56, weight: .semibold))
                             .foregroundColor(Color(red: 0.0, green: 0.45, blue: 0.91))
 
@@ -46,7 +46,7 @@ struct ScreenInactivatedView: View {
 
                     Spacer(minLength: 24)
 
-                    Image("screen_inactivated")
+                    Image("screen_deactivated")
                         .resizable()
                         .renderingMode(.original)
                         .aspectRatio(contentMode: .fit)

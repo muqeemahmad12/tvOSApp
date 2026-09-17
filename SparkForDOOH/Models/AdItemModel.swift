@@ -30,6 +30,11 @@ struct ItemSeqInfoResponse: Codable {
         // Decode groups lossily so one bad sequence does not fail the whole quest.
         item1 = JSONNullTolerant.decodeArray(from: container, forKey: .item1)
     }
+
+    /// Quest reported no assigned creatives — app should show Waiting for Content.
+    var isNoDataFound: Bool {
+        (status ?? "").trimmingCharacters(in: .whitespacesAndNewlines).uppercased() == "NO_DATA_FOUND"
+    }
 }
 
 // MARK: - Sequence group — can contain 1–3 ads

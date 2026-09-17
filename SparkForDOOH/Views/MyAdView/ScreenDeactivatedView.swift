@@ -2,7 +2,7 @@
 //  ScreenDeactivatedView.swift
 //  SparkForDOOH
 //
-//  Shown when heartbeat reports deactivated (API INACTIVE).
+//  Shown when heartbeat reports INACTIVE.
 //  Credentials + cache kept; wait for ACTIVE to resume.
 //
 
@@ -23,7 +23,7 @@ struct ScreenDeactivatedView: View {
 
                 HStack(alignment: .center, spacing: isWide ? 48 : 24) {
                     VStack(alignment: .leading, spacing: 20) {
-                        Text("Screen Deactivated")
+                        Text("Screen Inactivated")
                             .font(.system(size: 56, weight: .semibold))
                             .foregroundColor(Color(red: 0.0, green: 0.45, blue: 0.91))
 
@@ -47,7 +47,7 @@ struct ScreenDeactivatedView: View {
 
                     Spacer(minLength: 24)
 
-                    Image("activation_failed")
+                    Image("screen_inactivated")
                         .resizable()
                         .renderingMode(.original)
                         .aspectRatio(contentMode: .fit)

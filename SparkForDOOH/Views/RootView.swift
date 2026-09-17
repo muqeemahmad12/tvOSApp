@@ -29,24 +29,29 @@ struct RootView: View {
                 }
             }
 
-            // Deactivated: stay here until heartbeat returns ACTIVE (cache kept).
+            // INACTIVE: Screen Deactivated — stay until heartbeat returns ACTIVE (cache kept).
             if appVM.isScreenDeactivated {
                 ScreenDeactivatedView()
                     .transition(.opacity)
                     .zIndex(10)
             }
 
-            // Inactivated: brief UI, then clear credentials and re-register.
+            // DELETED: Screen Inactivated — credentials cleared; re-register after restart.
             if appVM.isScreenInactivated {
                 ScreenInactivatedView()
                     .transition(.opacity)
                     .zIndex(11)
             }
             
-            // Offline with nothing to play (activation or player).
-            if !networkMonitor.isConnected && adListVM.groupedAds.isEmpty && !appVM.isScreenDeactivated && !appVM.isScreenInactivated {
+            // Offline popup only when there is nothing cached to play.
+            // If playlist/cache has content, keep playing and skip Connection Lost.
+            if !networkMonitor.isConnected
+                && !appVM.isScreenDeactivated
+                && !appVM.isScreenInactivated
+                && adListVM.groupedAds.isEmpty {
                 ConnectionLostView()
                     .transition(.opacity)
+                    .zIndex(20)
             }
 
             // Show waiting screen when online but no playlist/content is assigned yet.
@@ -91,10 +96,16 @@ struct RootView: View {
         }
         .onChange(of: networkMonitor.isConnected) { isConnected in
             guard isConnected else { return }
+            print("🌐 Network restored — resuming APIs immediately")
             switch appVM.phase {
             case .playing:
                 if !appVM.isScreenDeactivated && !appVM.isScreenInactivated {
+                    HeartbeatAPI.shared.startHeartbeat()
+                    HeartbeatAPI.shared.kickHeartbeatNow()
                     adListVM.fetchAds(screenId: AppConfig.current.screenId, reqNum: 1)
+                } else if appVM.isScreenDeactivated {
+                    HeartbeatAPI.shared.startHeartbeat()
+                    HeartbeatAPI.shared.kickHeartbeatNow()
                 }
             case .activating:
                 HeartbeatAPI.shared.resetInitialHeartbeatGate()
