@@ -719,8 +719,8 @@ private extension AdPlayerViewModel {
         // Playable main video: stay fullscreen until companions prove healthy, then show L-shape.
         // Companion images are placeholders — if any fail, keep video fullscreen (do not skip).
         // Trackers fire only for creatives that actually display (never for corrupt).
+        // Do NOT reset consecutiveCorruptSkips here — only after readyToPlay / a real successful display.
         if let video {
-            consecutiveCorruptSkips = 0
             animateLShapeLayoutChange = false
             let knownBadCompanion = companions.contains { !$0.hasMinimumPlayableFields }
             // Fullscreen immediately; loader covers buffer gap until readyToPlay.
@@ -751,10 +751,16 @@ private extension AdPlayerViewModel {
             return
         }
 
-        // Unplayable main video (e.g. zip) + L-shape companions:
+        // Unplayable main video (e.g. zip):
+        // No companions → skip (counts toward all-corrupt → WaitingForContentView).
         // Healthy companions → branded fallback in main + keep L for duration.
         // Any companion corrupt → skip the group.
-        if hasUnplayableVideoSlot && !companions.isEmpty {
+        if hasUnplayableVideoSlot {
+            guard !companions.isEmpty else {
+                print("⏭️ Unplayable main video with no companions — skipping group \(group.sequence)")
+                skipEntireCorruptGroup()
+                return
+            }
             print("🖼️ Unplayable main video — verifying L-shape companions for fallback/skip")
             showWhiteMainSlot = true
             isMainSlotLoading = false
@@ -833,15 +839,10 @@ private extension AdPlayerViewModel {
                 return
             }
 
-            // Single fullscreen image
+            // Single fullscreen image — nothing usable → skip (all-corrupt → WaitingForContentView).
             if !mainPlayable {
-                self.isMainSlotLoading = false
-                self.showWhiteMainSlot = true
-                self.consecutiveCorruptSkips = 0
-                self.animateLShapeLayoutChange = false
-                self.showsLShapeCompanions = false
-                print("⬜ Main image corrupt — white fullscreen for duration")
-                self.startGroupTimer()
+                print("⏭️ Main image corrupt — skipping group \(group.sequence)")
+                self.skipEntireCorruptGroup()
                 return
             }
 
@@ -1145,7 +1146,7 @@ private extension AdPlayerViewModel {
     /// Main creative failed at runtime.
     /// L-shape + healthy companions → branded fallback in main for companion duration.
     /// L-shape + any corrupt companion → skip.
-    /// Single-item → branded fallback fullscreen for duration.
+    /// Single-item (nothing else to show) → skip; if every group fails → WaitingForContentView.
     func handleCorruptMainContent() {
         guard !isHandlingCorruptMain else { return }
         isHandlingCorruptMain = true
@@ -1165,10 +1166,9 @@ private extension AdPlayerViewModel {
 
         guard isLShape else {
             showsLShapeCompanions = false
-            print("🖼️ Main corrupt — branded fallback fullscreen for group duration")
-            consecutiveCorruptSkips = 0
-        startGroupTimer()
+            print("⏭️ Main corrupt (single item) — skipping group")
             isHandlingCorruptMain = false
+            skipEntireCorruptGroup()
             return
         }
 
@@ -1272,7 +1272,8 @@ private extension AdPlayerViewModel {
                     )
                     self.skipCorruptMainContent()
                 } else if item.status == .readyToPlay {
-                    // Swap loader for real video frames.
+                    // Swap loader for real video frames — real success resets corrupt streak.
+                    self.consecutiveCorruptSkips = 0
                     self.isMainSlotLoading = false
                     self.showWhiteMainSlot = false
                     self.trackImpression(for: ad)
