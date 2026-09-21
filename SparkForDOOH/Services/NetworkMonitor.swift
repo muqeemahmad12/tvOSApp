@@ -16,9 +16,10 @@ final class NetworkMonitor: ObservableObject {
     @Published var isConnected: Bool = true
     @Published var connectionType: ConnectionType = .unknown
     
-    // General monitor plus Wi-Fi specific to catch cold-start -> Wi-Fi transitions.
+    // General + interface-specific monitors so Apple TV Wi-Fi/Ethernet recover quickly.
     private let primaryMonitor = NWPathMonitor()
     private let wifiMonitor = NWPathMonitor(requiredInterfaceType: .wifi)
+    private let ethernetMonitor = NWPathMonitor(requiredInterfaceType: .wiredEthernet)
     private let queue = DispatchQueue(label: "com.doceree.sparkfordooh.networkmonitor")
     // Multiple TCP targets to reduce single-host block risk.
     private let tcpTargets: [(host: NWEndpoint.Host, port: NWEndpoint.Port)] = [
@@ -27,6 +28,8 @@ final class NetworkMonitor: ObservableObject {
         (host: "208.67.222.222", port: 80)
     ]
     private var periodicProbeTask: Task<Void, Never>?
+    /// How often to re-check while offline (registration / Connection Lost resume).
+    private let offlineProbeIntervalNanoseconds: UInt64 = 750_000_000
     enum ConnectionType {
         case wifi
         case cellular
@@ -57,17 +60,31 @@ final class NetworkMonitor: ObservableObject {
         }
         primaryMonitor.pathUpdateHandler = handler("Primary")
         wifiMonitor.pathUpdateHandler = handler("WiFi")
+        ethernetMonitor.pathUpdateHandler = handler("Ethernet")
         
         primaryMonitor.start(queue: queue)
         wifiMonitor.start(queue: queue)
+        ethernetMonitor.start(queue: queue)
         
         // Evaluate the current path immediately so cold starts reflect reality.
         evaluateCurrentPath(reason: "InitialPath")
     }
 
-    /// Manually refresh connectivity (useful when returning to foreground).
+    /// Manually refresh connectivity (useful when returning to foreground / registration resume).
     func refreshConnectivity() {
         evaluateCurrentPath(reason: "ManualRefresh")
+    }
+
+    /// Force an immediate online recovery probe (does not delay offline UI).
+    func kickOnlineRecoveryProbe() {
+        let path = primaryMonitor.currentPath
+        if path.status == .satisfied {
+            DispatchQueue.main.async {
+                self.applyStatus(connected: true, path: path, reason: "KickPathSatisfied")
+            }
+            return
+        }
+        probeForOnlineRecovery(path: path, reason: "KickRecoveryProbe")
     }
 
     /// Throws `AppError.offline` when there is no connectivity — call before outbound APIs.
@@ -89,7 +106,7 @@ final class NetworkMonitor: ObservableObject {
             await MainActor.run {
                 print("🛰️ Recovery probe: \(success ? "online" : "still offline") [\(reason)]")
                 if success {
-                    self.applyStatus(connected: true, path: path, reason: reason)
+                    self.applyStatus(connected: true, path: self.primaryMonitor.currentPath, reason: reason)
                 }
             }
         }
@@ -98,7 +115,7 @@ final class NetworkMonitor: ObservableObject {
     private func startPeriodicProbe() {
         guard periodicProbeTask == nil else { return }
         periodicProbeTask = Task { [weak self] in
-            // Probe immediately, then every ~2s while offline so resume feels snappy.
+            // Probe immediately, then every ~0.75s while offline so resume feels snappy.
             while let self, !Task.isCancelled {
                 let path = self.primaryMonitor.currentPath
                 if path.status == .satisfied {
@@ -115,7 +132,7 @@ final class NetworkMonitor: ObservableObject {
                     }
                 }
                 if success { return }
-                try? await Task.sleep(nanoseconds: 2_000_000_000)
+                try? await Task.sleep(nanoseconds: self.offlineProbeIntervalNanoseconds)
             }
         }
     }

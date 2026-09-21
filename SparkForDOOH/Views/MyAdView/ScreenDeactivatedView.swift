@@ -2,8 +2,7 @@
 //  ScreenDeactivatedView.swift
 //  SparkForDOOH
 //
-//  Shown when heartbeat reports INACTIVE.
-//  Credentials + cache kept; wait for ACTIVE to resume.
+//  Shown when heartbeat reports DELETED — must re-register / re-login.
 //
 
 import SwiftUI
@@ -23,18 +22,18 @@ struct ScreenDeactivatedView: View {
 
                 HStack(alignment: .center, spacing: isWide ? 48 : 24) {
                     VStack(alignment: .leading, spacing: 20) {
-                        Text("Screen Inactivated")
+                        Text("Screen Deactivated")
                             .font(.system(size: 56, weight: .semibold))
                             .foregroundColor(Color(red: 0.0, green: 0.45, blue: 0.91))
 
-                        Text("This screen is disabled in the system and is not eligible to receive content.")
+                        Text("This screen needs to be re-registered. Please restart the application to generate a new QR code, then scan the QR code and log in again through the web dashboard.")
                             .font(.system(size: 28, weight: .regular))
                             .foregroundColor(Color(red: 0.32, green: 0.36, blue: 0.41))
                             .lineSpacing(4)
                             .multilineTextAlignment(.leading)
                             .fixedSize(horizontal: false, vertical: true)
 
-                        Text("Please contact your Facility Manager/Administrator to re-enable this screen. Once re-activated and synced, content will resume automatically.")
+                        Text("If you need assistance, please contact your Facility Manager or Administrator to reactivate this screen.")
                             .font(.system(size: 26, weight: .regular))
                             .foregroundColor(Color(red: 0.32, green: 0.36, blue: 0.41))
                             .lineSpacing(4)
@@ -47,7 +46,7 @@ struct ScreenDeactivatedView: View {
 
                     Spacer(minLength: 24)
 
-                    Image("screen_inactivated")
+                    Image("screen_deactivated")
                         .resizable()
                         .renderingMode(.original)
                         .aspectRatio(contentMode: .fit)

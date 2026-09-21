@@ -21,8 +21,8 @@ struct ActivationView: View {
 
     var body: some View {
         ZStack {
-            if vm.isScreenInactivated {
-                ScreenInactivatedView()
+            if vm.isScreenDeactivated {
+                ScreenDeactivatedView()
             } else {
                 Image("registration_bg")
                     .resizable()
@@ -55,7 +55,7 @@ struct ActivationView: View {
 
             // Registration/login has no playlist to play — show Connection Lost when offline.
             // (Playback with cache never mounts this view.)
-            if !networkMonitor.isConnected, !vm.isScreenInactivated {
+            if !networkMonitor.isConnected, !vm.isScreenDeactivated {
                 ConnectionLostView()
                     .transition(.opacity)
                     .zIndex(20)
@@ -73,6 +73,7 @@ struct ActivationView: View {
                 vm.activateDevice()
             } else {
                 print("📵 Activation onAppear skipped — no internet (Connection Lost shown)")
+                NetworkMonitor.shared.kickOnlineRecoveryProbe()
             }
         }
         .onChange(of: vm.isActivated) { activated in
@@ -82,12 +83,30 @@ struct ActivationView: View {
             }
         }
         .onChange(of: networkMonitor.isConnected) { connected in
-            // If poll is already in flight (isLoading), it resumes itself once online.
-            if connected && !vm.isActivated && !vm.isLoading && !vm.isScreenInactivated {
-                print("🌐 Network restored during activation - retrying activation/poll")
-                vm.activateDevice()
+            if connected {
+                resumeActivationIfNeeded(reason: "isConnected")
+            } else {
+                NetworkMonitor.shared.kickOnlineRecoveryProbe()
             }
         }
+        .onReceive(NotificationCenter.default.publisher(for: .networkDidBecomeReachable)) { _ in
+            resumeActivationIfNeeded(reason: "networkDidBecomeReachable")
+        }
+        // While Connection Lost is up, keep probing so resume is not stuck waiting for a path event.
+        .task(id: networkMonitor.isConnected) {
+            guard !networkMonitor.isConnected else { return }
+            while !Task.isCancelled, !NetworkMonitor.shared.isConnected {
+                NetworkMonitor.shared.refreshConnectivity()
+                NetworkMonitor.shared.kickOnlineRecoveryProbe()
+                try? await Task.sleep(nanoseconds: 500_000_000)
+            }
+        }
+    }
+
+    private func resumeActivationIfNeeded(reason: String) {
+        guard !vm.isActivated, !vm.isScreenDeactivated else { return }
+        print("🌐 Network restored during activation [\(reason)] — resuming registration")
+        vm.resumeAfterConnectivityRestored()
     }
 }
 

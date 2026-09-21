@@ -80,6 +80,13 @@ final class AdPlaylistViewModel: ObservableObject {
     }
 
     func fetchAds(screenId: String, reqNum: Int) {
+        // DELETED / logged out — credentials cleared; do not hit quest (avoids securityKey Not Found).
+        guard AppRootViewModel.hasSavedSecureKey() else {
+            print("📵 Quest skipped — no secureKey (screen deactivated or not activated)")
+            isLoading = false
+            return
+        }
+
         // Offline: prefer cached playlist immediately — do not retry quest forever.
         if !NetworkMonitor.shared.isConnected {
             if groupedAds.isEmpty {

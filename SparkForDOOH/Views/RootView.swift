@@ -29,25 +29,26 @@ struct RootView: View {
                 }
             }
 
-            // INACTIVE: Screen Deactivated — stay until heartbeat returns ACTIVE (cache kept).
-            if appVM.isScreenDeactivated {
-                ScreenDeactivatedView()
+            // INACTIVE: Screen Inactivated — stay until heartbeat returns ACTIVE (cache kept).
+            if appVM.isScreenInactivated {
+                ScreenInactivatedView()
                     .transition(.opacity)
                     .zIndex(10)
             }
 
-            // DELETED: Screen Inactivated — credentials cleared; re-register after restart.
-            if appVM.isScreenInactivated {
-                ScreenInactivatedView()
+            // DELETED: Screen Deactivated — credentials cleared; re-register after restart.
+            if appVM.isScreenDeactivated {
+                ScreenDeactivatedView()
                     .transition(.opacity)
                     .zIndex(11)
             }
             
-            // Offline popup only when there is nothing cached to play.
-            // If playlist/cache has content, keep playing and skip Connection Lost.
+            // Offline with no playlist at all (player not yet preloading).
+            // Preload / loading-with-no-playable-content is handled inside AdPlayerView.
             if !networkMonitor.isConnected
                 && !appVM.isScreenDeactivated
                 && !appVM.isScreenInactivated
+                && appVM.phase == .playing
                 && adListVM.groupedAds.isEmpty {
                 ConnectionLostView()
                     .transition(.opacity)
@@ -68,7 +69,7 @@ struct RootView: View {
         }
         .onAppear {
             if HeartbeatAPI.shared.isAwaitingActiveStatus {
-                appVM.handleScreenDeactivation()
+                appVM.handleScreenInactivation()
             }
             if appVM.phase == .playing, !appVM.isScreenDeactivated, !appVM.isScreenInactivated {
                 SentryService.shared.track(
@@ -103,7 +104,7 @@ struct RootView: View {
                     HeartbeatAPI.shared.startHeartbeat()
                     HeartbeatAPI.shared.kickHeartbeatNow()
                     adListVM.fetchAds(screenId: AppConfig.current.screenId, reqNum: 1)
-                } else if appVM.isScreenDeactivated {
+                } else if appVM.isScreenInactivated {
                     HeartbeatAPI.shared.startHeartbeat()
                     HeartbeatAPI.shared.kickHeartbeatNow()
                 }
@@ -117,14 +118,14 @@ struct RootView: View {
                 NetworkMonitor.shared.refreshConnectivity()
             }
         }
-        .onReceive(NotificationCenter.default.publisher(for: .screenDidDeactivate)) { _ in
-            appVM.handleScreenDeactivation()
-        }
         .onReceive(NotificationCenter.default.publisher(for: .screenDidInactivate)) { _ in
             appVM.handleScreenInactivation()
         }
+        .onReceive(NotificationCenter.default.publisher(for: .screenDidDeactivate)) { _ in
+            appVM.handleScreenDeactivation()
+        }
         .onReceive(NotificationCenter.default.publisher(for: .heartbeatScreenStatusActive)) { _ in
-            // Only fired when recovering from deactivation (see HeartbeatAPI).
+            // Only fired when recovering from inactivation (see HeartbeatAPI).
             appVM.handleScreenReactivation()
             print("📥 Re-activated — resume playlist + one quest fetch")
             adListVM.fetchAds(screenId: AppConfig.current.screenId, reqNum: 1)

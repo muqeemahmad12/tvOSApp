@@ -82,6 +82,9 @@ final class AdPlayerViewModel: ObservableObject {
     // MARK: - Background download tracking
     fileprivate var isPendingDownloadComplete = false
     fileprivate var isDownloadingInBackground = false
+    /// Filling playlist holes (failed/offline during preload) while cached items already play.
+    fileprivate var isFillingMissingDownloads = false
+    fileprivate var missingAssetsDownloadTask: Task<Void, Never>?
 
     // MARK: - File Manager helpers
     fileprivate var fileManager: FileManager { .default }
@@ -212,6 +215,7 @@ extension AdPlayerViewModel {
         isPreloading = false
         isPlayerReadyForOverlay = false
         consecutiveCorruptSkips = 0
+        cancelMissingAssetsBackgroundDownload()
         clearVideoObservers()
         timer?.invalidate()
         timer = nil
@@ -232,6 +236,8 @@ extension AdPlayerViewModel {
 
     /// Stop playback and any timers.
     func stop() {
+        cancelMissingAssetsBackgroundDownload()
+        stopAutoSync()
         clearVideoObservers()
         activePlayer?.pause()
         activePlayer = nil
@@ -254,21 +260,42 @@ extension AdPlayerViewModel {
             activePlayer?.play()
             print("▶️ Resumed playback after app became active")
         }
+        retryMissingDownloadsIfNeeded()
     }
 
+    /// After reconnect: keep playing cached creatives and download any still-missing playlist assets.
+    func retryMissingDownloadsIfNeeded() {
+        guard !disablePreloadingAndValidation else { return }
+        guard !groupedAds.isEmpty else { return }
+        let missing = missingPlayableAds()
+        guard !missing.isEmpty else { return }
+        print("📥 Connectivity/resume — \(missing.count) playlist asset(s) still missing; downloading in background")
+        startMissingAssetsBackgroundDownload()
+    }
+    
     /// Pause playback on deactivation — keep playlist + disk/memory caches for resume.
+    /// Always stops the quest sync timer (no DRS calls until re-activation).
     func pauseForDeactivation() {
+        stopAutoSync()
         timer?.invalidate()
         timer = nil
         activePlayer?.pause()
         isPlayerReadyForOverlay = false
-        print("⏸️ Playback paused for deactivation (cache kept)")
+        print("⏸️ Playback paused — quest sync timer stopped (deactivated/inactivated)")
     }
 
-    /// Resume existing playlist after ACTIVE; quest sync may update in the background.
+    /// Resume existing playlist after ACTIVE; restart quest sync timer when credentials exist.
     func resumeAfterReactivation() {
         isWaitingForPlayableContent = false
         isPlayerReadyForOverlay = true
+        // Always clear any stale timer, then start fresh only if secureKey is back.
+        stopAutoSync()
+        if AppRootViewModel.hasSavedSecureKey() {
+            startAutoSync(screenId: screenId)
+            print("▶️ Quest sync timer restarted after re-activation (\(Int(repeatInTime))s)")
+        } else {
+            print("📵 Quest sync not restarted — no secureKey yet")
+        }
         if activePlayer != nil, currentGroup != nil {
             activePlayer?.play()
             // Restart L-shape / image timers if needed for the current group.
@@ -309,7 +336,10 @@ extension AdPlayerViewModel {
 // MARK: - Preloading & Assets
 private extension AdPlayerViewModel {
     /// Preload all assets in the current playlist.
+    /// Completes when each item has been attempted once; missing files keep downloading in background
+    /// while playback starts from whatever is already cached.
     func preloadAllAssets() async {
+        cancelMissingAssetsBackgroundDownload()
         isPreloading = true
         preloadProgress = 0.0
         localURLs.removeAll()
@@ -318,12 +348,18 @@ private extension AdPlayerViewModel {
         let allAds = groupedAds.flatMap { $0.ii }
         let total = Double(max(allAds.count, 1))
         var completed = 0.0
+        var cachedCount = 0
+        var missingCount = 0
 
         for ad in allAds {
             // Skip unplayable L-shape placeholders (zip/HTML5/etc.) — UI shows white.
-            if ad.hasMinimumPlayableFields,
-               let url = await downloadAsset(ad.itemurl) {
+            if ad.hasMinimumPlayableFields {
+            if let url = await downloadAsset(ad.itemurl) {
                 localURLs[ad.itemurl] = url
+                    cachedCount += 1
+                } else {
+                    missingCount += 1
+                }
             }
             completed += 1
             await MainActor.run { preloadProgress = completed / total }
@@ -334,7 +370,95 @@ private extension AdPlayerViewModel {
 
         await MainActor.run {
             isPreloading = false
-            print("✅ All assets downloaded to \(adsCacheDir.lastPathComponent)")
+            if missingCount == 0 {
+                print("✅ All \(cachedCount) playable asset(s) cached in \(adsCacheDir.lastPathComponent)")
+            } else {
+                print("⚠️ Preload partial — cached \(cachedCount), missing \(missingCount). Playing cached now; downloading rest in background.")
+            }
+        }
+
+        if missingCount > 0 {
+            startMissingAssetsBackgroundDownload()
+        }
+    }
+
+    /// Playable creatives in the current playlist that are not yet on disk / in `localURLs`.
+    func missingPlayableAds() -> [AdItemModel] {
+        groupedAds
+            .flatMap(\.ii)
+            .filter { $0.hasMinimumPlayableFields && localURLs[$0.itemurl] == nil && !isAssetCachedOnDisk($0.itemurl) }
+    }
+
+    func isAssetCachedOnDisk(_ remoteURLString: String) -> Bool {
+        let normalized = AdItemModel.normalizedMediaURLString(remoteURLString)
+        guard let remoteURL = URL(string: normalized) ?? {
+            normalized.addingPercentEncoding(withAllowedCharacters: .urlFragmentAllowed).flatMap(URL.init(string:))
+        }() else { return false }
+        let destination = adsCacheDir.appendingPathComponent(remoteURL.lastPathComponent.lowercased())
+        return fileManager.fileExists(atPath: destination.path)
+    }
+
+    func cancelMissingAssetsBackgroundDownload() {
+        missingAssetsDownloadTask?.cancel()
+        missingAssetsDownloadTask = nil
+        isFillingMissingDownloads = false
+    }
+
+    /// Download remaining playlist assets without blocking playback.
+    func startMissingAssetsBackgroundDownload() {
+        guard !disablePreloadingAndValidation else { return }
+        guard !isFillingMissingDownloads else {
+            print("📥 Missing-asset background download already running")
+            return
+        }
+        cancelMissingAssetsBackgroundDownload()
+        missingAssetsDownloadTask = Task { [weak self] in
+            await self?.fillMissingAssetsInBackground()
+        }
+    }
+
+    func fillMissingAssetsInBackground() async {
+        isFillingMissingDownloads = true
+        defer {
+            isFillingMissingDownloads = false
+            missingAssetsDownloadTask = nil
+        }
+
+        var pass = 0
+        while !Task.isCancelled {
+            let missing = missingPlayableAds()
+            guard !missing.isEmpty else {
+                print("✅ Background fill complete — all playlist assets cached")
+                return
+            }
+
+            if !NetworkMonitor.shared.canMakeNetworkCalls {
+                print("📵 Background fill paused — \(missing.count) asset(s) waiting for internet")
+                try? await Task.sleep(nanoseconds: 500_000_000)
+                continue
+            }
+
+            pass += 1
+            print("📥 Background fill pass \(pass) — downloading \(missing.count) missing asset(s)")
+            var gotAny = false
+            for ad in missing {
+                guard !Task.isCancelled else { return }
+                if !NetworkMonitor.shared.canMakeNetworkCalls { break }
+                if let url = await downloadAsset(ad.itemurl) {
+                    localURLs[ad.itemurl] = url
+                    gotAny = true
+                    print("💾 Background saved: \(url.lastPathComponent)")
+                }
+            }
+
+            if missingPlayableAds().isEmpty {
+                print("✅ Background fill complete — all playlist assets cached")
+                return
+            }
+            // Back off before retrying stubborn failures (still online).
+            if NetworkMonitor.shared.canMakeNetworkCalls {
+                try? await Task.sleep(nanoseconds: gotAny ? 1_000_000_000 : 3_000_000_000)
+            }
         }
     }
 
@@ -494,7 +618,7 @@ private extension AdPlayerViewModel {
                 if !ad.hasMinimumPlayableFields {
                     if isLShape {
                         print("⬜ Keeping unplayable L-shape slot as white placeholder:", ad.itemurl)
-                        keptAds.append(ad)
+                    keptAds.append(ad)
                     }
                     continue
                 }
@@ -508,7 +632,7 @@ private extension AdPlayerViewModel {
                         print("⬜ Invalid video URL — white placeholder in L-shape:", ad.itemurl)
                         keptAds.append(ad)
                     } else {
-                        print("❌ Removing (invalid URL):", ad.itemurl)
+                    print("❌ Removing (invalid URL):", ad.itemurl)
                     }
                     continue
                 }
@@ -1043,7 +1167,7 @@ private extension AdPlayerViewModel {
             showsLShapeCompanions = false
             print("🖼️ Main corrupt — branded fallback fullscreen for group duration")
             consecutiveCorruptSkips = 0
-            startGroupTimer()
+        startGroupTimer()
             isHandlingCorruptMain = false
             return
         }
@@ -1081,7 +1205,7 @@ private extension AdPlayerViewModel {
             Task { @MainActor in
                 guard let self else { return }
                 if let group = self.currentGroup {
-                    for ad in group.ii where ad.assettype.lowercased() == "image" {
+            for ad in group.ii where ad.assettype.lowercased() == "image" {
                         self.trackImageViewComplete(for: ad, duration: duration)
                     }
                 }
@@ -1140,8 +1264,12 @@ private extension AdPlayerViewModel {
             Task { @MainActor in
                 guard let self else { return }
                 if item.status == .failed {
-                    let message = item.error?.localizedDescription ?? "unknown"
-                    print("❌ Main video failed to load: \(message)")
+                    self.logVideoPlaybackFailure(
+                        stage: "load",
+                        error: item.error,
+                        playURL: playURL,
+                        ad: ad
+                    )
                     self.skipCorruptMainContent()
                 } else if item.status == .readyToPlay {
                     // Swap loader for real video frames.
@@ -1162,12 +1290,49 @@ private extension AdPlayerViewModel {
         ) { [weak self] notification in
             Task { @MainActor in
                 let err = notification.userInfo?[AVPlayerItemFailedToPlayToEndTimeErrorKey] as? Error
-                print("❌ Main video failed during playback: \(err?.localizedDescription ?? "unknown")")
+                self?.logVideoPlaybackFailure(
+                    stage: "playback",
+                    error: err,
+                    playURL: playURL,
+                    ad: ad
+                )
                 self?.skipCorruptMainContent()
             }
         }
 
         installVideoEndObserver(for: ad, epoch: endEpoch)
+    }
+
+    /// Detailed console log for AVPlayer failures (domain/code + 4K/Simulator hint).
+    private func logVideoPlaybackFailure(stage: String, error: Error?, playURL: URL, ad: AdItemModel) {
+        let ns = error as NSError?
+        let domain = ns?.domain ?? "unknown"
+        let code = ns?.code ?? -1
+        let message = ns?.localizedDescription ?? error?.localizedDescription ?? "unknown"
+        let underlying = (ns?.userInfo[NSUnderlyingErrorKey] as? NSError)
+            .map { "\($0.domain)/\($0.code): \($0.localizedDescription)" } ?? "none"
+        let name = playURL.lastPathComponent
+        let looks4K = name.localizedCaseInsensitiveContains("2160")
+            || name.localizedCaseInsensitiveContains("4k")
+            || name.localizedCaseInsensitiveContains("3840")
+        #if targetEnvironment(simulator)
+        let onSimulator = true
+        #else
+        let onSimulator = false
+        #endif
+
+        print("❌ Main video failed (\(stage)): \(message)")
+        print("   file=\(name)")
+        print("   url=\(playURL.absoluteString)")
+        print("   error=\(domain)/\(code) underlying=\(underlying)")
+        print("   itemid=\(ad.itemid.isEmpty ? "(none)" : ad.itemid)")
+        if onSimulator && looks4K {
+            print("   💡 Hint: 4K/2160p often fails in Apple TV Simulator — test on a real Apple TV 4K, or use a 1080p encode.")
+        } else if onSimulator {
+            print("   💡 Hint: running in Simulator — some codecs/resolutions fail here even when the file is valid.")
+        } else if looks4K {
+            print("   💡 Hint: 4K asset — confirm device supports this encode (H.264/HEVC level) or try 1080p.")
+        }
     }
 
     /// Bind / re-bind end observer. `epoch` ignores stale ends after L-scale or advance.
@@ -1230,7 +1395,7 @@ private extension AdPlayerViewModel {
     }
     
     // MARK: - Impression Tracking
-
+    
     /// Only fire trackers for creatives that are playable and (for images) loaded into cache.
     func canFireTracker(for ad: AdItemModel) -> Bool {
         guard ad.hasMinimumPlayableFields else { return false }
@@ -1280,14 +1445,14 @@ private extension AdPlayerViewModel {
             sampleRate: 0.2
         )
     }
-
+    
     /// View/playback finished — do not re-fire impression `trackerlist` (those are one-shot pixels).
     func trackCompletion(for ad: AdItemModel) {
         guard !disablePreloadingAndValidation else { return }
         guard canFireTracker(for: ad) else { return }
         print("✅ Creative completed itemid=\(ad.itemid.isEmpty ? "(url)" : ad.itemid) (no re-fire of impression trackers)")
     }
-
+    
     /// Image dwell finished — do not re-fire impression `trackerlist`.
     func trackImageViewComplete(for ad: AdItemModel, duration: Int) {
         guard !disablePreloadingAndValidation else { return }
@@ -1308,7 +1473,7 @@ private extension AdPlayerViewModel {
                     storeImage(image, forKey: ad.itemurl)
                     print("🖼️ Cached image (disk):", ad.itemurl)
                 }
-            } catch {
+        } catch {
                 print("❌ Image disk load failed:", ad.itemurl, error.localizedDescription)
             }
             return
@@ -1394,15 +1559,37 @@ private extension AdPlayerViewModel {
 // MARK: - Sync helpers
 private extension AdPlayerViewModel {
     func startAutoSync(screenId: String) {
-        guard syncTimer == nil else { return }
+        // No credentials after DELETED — never schedule quest sync.
+        guard AppRootViewModel.hasSavedSecureKey() else {
+            print("📵 Quest auto-sync not started — no secureKey")
+            stopAutoSync()
+            return
+        }
+        if syncTimer != nil {
+            print("ℹ️ Quest auto-sync already running")
+            return
+        }
         syncTimer = Timer.scheduledTimer(withTimeInterval: repeatInTime, repeats: true) { [weak self] _ in
             Task { @MainActor in
                 self?.syncAds(with: screenId)
             }
         }
+        print("⏱️ Quest auto-sync started — every \(Int(repeatInTime))s")
+    }
+
+    func stopAutoSync() {
+        guard syncTimer != nil else { return }
+        syncTimer?.invalidate()
+        syncTimer = nil
+        print("🛑 Quest auto-sync timer stopped")
     }
 
     func syncAds(with screenId: String) {
+        guard AppRootViewModel.hasSavedSecureKey() else {
+            print("📵 Quest sync skipped — no secureKey (screen deactivated)")
+            stopAutoSync()
+            return
+        }
         guard NetworkMonitor.shared.canMakeNetworkCalls else {
             print("📵 Quest sync skipped — no internet")
             return
@@ -1437,7 +1624,7 @@ private extension AdPlayerViewModel {
                     pendingGroups = playablePending
                     isPendingDownloadComplete = false
                     PlaylistCacheService.shared.savePlaylist(playablePending)
-                    await startBackgroundDownload()
+                await startBackgroundDownload()
                 } else {
                     print("ℹ️ Quest sync has no playable image/video — keeping current playlist and cache")
                     // If we have nothing to play at all, show waiting (still do not wipe disk).
@@ -1480,9 +1667,9 @@ private extension AdPlayerViewModel {
         isDownloadingInBackground = false
         isPendingDownloadComplete = true
         print("✅ Background download complete — applying playlist and removing obsolete cache")
-
+        
         // Successful playable update: switch now (don't keep looping unmatched old video/images).
-        await applyPendingPlaylistSafely()
+            await applyPendingPlaylistSafely()
     }
     
     /// Handle fallback after 5 consecutive sync failures

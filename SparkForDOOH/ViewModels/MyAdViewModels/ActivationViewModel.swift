@@ -17,7 +17,7 @@ final class ActivationViewModel: ObservableObject {
     @Published var qrURL = ""
     @Published var isLoading = false
     @Published var isActivated = false  // Dedicated flag for activation complete
-    @Published var isScreenInactivated = false  // Show ScreenInactivatedView until restart / re-login
+    @Published var isScreenDeactivated = false  // Show ScreenDeactivatedView until restart / re-login
     @Published var isCodeExpired = false  // Shows refresh button after 15 min
     @Published var timeRemaining: Int = 15 * 60  // 15 minutes in seconds
     
@@ -106,6 +106,18 @@ final class ActivationViewModel: ObservableObject {
         activateDevice()
     }
 
+    /// Called as soon as connectivity returns on the registration screen.
+    /// Restarts request/poll if idle; if a poll is already in flight it will unblock on its own.
+    func resumeAfterConnectivityRestored() {
+        guard !isActivated, !isScreenDeactivated else { return }
+        guard NetworkMonitor.shared.canMakeNetworkCalls else { return }
+        if isLoading, !deviceCode.isEmpty {
+            print("🌐 Activation poll already in flight — will continue now that network is back")
+            return
+        }
+        activateDevice()
+    }
+
     func activateDevice() {
         guard NetworkMonitor.shared.canMakeNetworkCalls else {
             print("📵 Activation skipped — no internet")
@@ -115,7 +127,7 @@ final class ActivationViewModel: ObservableObject {
         isLoading = true
         isActivated = false
         isCodeExpired = false
-        isScreenInactivated = false
+        isScreenDeactivated = false
 
         Task {
             do {
@@ -208,15 +220,15 @@ final class ActivationViewModel: ObservableObject {
         }
     }
 
-    /// Show Screen Inactivated and stay; clear credentials. New QR after app restart / re-login.
+    /// Show Screen Deactivated and stay; clear credentials. New QR after app restart / re-login.
     private func enterInactivationForReregister() {
         stopTimers()
-        isScreenInactivated = true
+        isScreenDeactivated = true
         isLoading = false
         AppRootViewModel.clearActivationCredentials()
         AppRootViewModel.clearPlaybackCaches()
         HeartbeatAPI.shared.stopHeartbeat()
-        print("🔒 Screen Inactivated — credentials cleared; stay until restart / re-login")
+        print("🔒 Screen Deactivated — credentials cleared; stay until restart / re-login")
     }
     
     private func checkIfActivated(_ status: String) -> Bool {

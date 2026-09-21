@@ -66,10 +66,10 @@ final class ActivationPollAPI {
         var attempt = 0
 
         while Date() < deadline {
-            // Do not burn the timeout while offline — wait for connectivity.
+            // Do not burn the timeout while offline — wait briefly and re-check so resume is fast.
             if !NetworkMonitor.shared.canMakeNetworkCalls {
                 print("📵 Activation poll paused — no internet")
-                try? await Task.sleep(nanoseconds: delaySeconds * 1_000_000_000)
+                try? await Task.sleep(nanoseconds: 500_000_000)
                 continue
             }
 

@@ -93,6 +93,14 @@ private struct LandingGateView: View {
                         Text("Loading configuration…")
                             .font(.title3)
                             .foregroundColor(.white.opacity(0.8))
+                        if !networkMonitor.isConnected {
+                            Text("No internet connection")
+                                .font(.title3)
+                                .foregroundColor(.white.opacity(0.9))
+                            Text("Waiting to reconnect…")
+                                .font(.footnote)
+                                .foregroundColor(.white.opacity(0.6))
+                        }
                     }
                     .frame(maxWidth: .infinity, maxHeight: .infinity)
                     .background(Color.black)
@@ -114,9 +122,18 @@ private struct LandingGateView: View {
                         Text(status)
                             .font(.title3)
                             .foregroundColor(.white.opacity(0.8))
-                        Text("Waiting for ACTIVE screen status…")
-                            .font(.footnote)
-                            .foregroundColor(.white.opacity(0.6))
+                        if !networkMonitor.isConnected {
+                            Text("No internet connection")
+                                .font(.title3)
+                                .foregroundColor(.white.opacity(0.9))
+                            Text("Waiting to reconnect…")
+                                .font(.footnote)
+                                .foregroundColor(.white.opacity(0.6))
+                        } else {
+                            Text("Waiting for ACTIVE screen status…")
+                                .font(.footnote)
+                                .foregroundColor(.white.opacity(0.6))
+                        }
                     }
                     .frame(maxWidth: .infinity, maxHeight: .infinity)
                     .background(Color.black)
@@ -124,9 +141,9 @@ private struct LandingGateView: View {
                 }
             }
             
-            // Pre-player gate only (no cached ads playing yet). Once RootView is ready,
-            // Connection Lost is gated on empty playlist/cache in RootView.
-            if tvConfigReady, !networkMonitor.isConnected, !isReady {
+            // Offline before player unlock.
+            // While registration is showing, ActivationView owns Connection Lost (avoid double overlay / stuck UI).
+            if !networkMonitor.isConnected, !isReady, !showActivation {
                 ConnectionLostView()
                     .transition(.opacity)
                     .zIndex(20)
@@ -143,7 +160,12 @@ private struct LandingGateView: View {
             showActivation = true
         }
         .onChange(of: networkMonitor.isConnected) { connected in
-            guard connected, !isReady else { return }
+            guard connected, !isReady else {
+                if !connected, !isReady {
+                    NetworkMonitor.shared.kickOnlineRecoveryProbe()
+                }
+                return
+            }
             print("🌐 Landing gate — network restored, resuming immediately")
             if showActivation {
                 // ActivationView also retries; keep gate status informative.
@@ -168,6 +190,7 @@ private struct LandingGateView: View {
         .onChange(of: scenePhase) { phase in
             if phase == .active && !isReady {
                 NetworkMonitor.shared.refreshConnectivity()
+                NetworkMonitor.shared.kickOnlineRecoveryProbe()
             }
         }
     }

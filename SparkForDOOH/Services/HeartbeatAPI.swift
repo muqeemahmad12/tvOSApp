@@ -21,15 +21,15 @@ extension Notification.Name {
     static let initialHeartbeatFailed = Notification.Name("com.doceree.sparkfordooh.initialHeartbeatFailed")
 
     /// Posted when heartbeat `screenStatus` is `INACTIVE`
-    /// (keep credentials/cache; show Screen Deactivated; wait for ACTIVE).
-    static let screenDidDeactivate = Notification.Name("com.doceree.sparkfordooh.screenDidDeactivate")
+    /// (keep credentials/cache; show Screen Inactivated; wait for ACTIVE).
+    static let screenDidInactivate = Notification.Name("com.doceree.sparkfordooh.screenDidInactivate")
 
-    /// Posted when heartbeat reports ACTIVE again (resume after INACTIVE / deactivated).
+    /// Posted when heartbeat reports ACTIVE again (resume after INACTIVE / inactivated).
     static let heartbeatScreenStatusActive = Notification.Name("com.doceree.sparkfordooh.heartbeatScreenStatusActive")
 
     /// Posted when heartbeat `screenStatus` is `DELETED`
-    /// (clear caches/credentials; show Screen Inactivated).
-    static let screenDidInactivate = Notification.Name("com.doceree.sparkfordooh.screenDidInactivate")
+    /// (clear caches/credentials; show Screen Deactivated).
+    static let screenDidDeactivate = Notification.Name("com.doceree.sparkfordooh.screenDidDeactivate")
 
     /// Posted after every successful heartbeat response (even if ticker/logo unchanged).
     static let heartbeatDidComplete = Notification.Name("com.doceree.sparkfordooh.heartbeatDidComplete")
@@ -91,9 +91,9 @@ final class HeartbeatAPI {
     /// Outcome of a single heartbeat request (gate unlocks only on `.active`).
     enum SendResult {
         case active(HeartbeatResponseData?)
-        /// `INACTIVE` — Screen Deactivated, keep cache, wait for ACTIVE.
+        /// `INACTIVE` — Screen Inactivated, keep cache, wait for ACTIVE.
         case inactive(HeartbeatResponseData?)
-        /// `DELETED` — Screen Inactivated, clear and re-register.
+        /// `DELETED` — Screen Deactivated, clear and re-register.
         case deleted(HeartbeatResponseData?)
         case requestFailed
     }
@@ -198,21 +198,21 @@ final class HeartbeatAPI {
                 markInitialHeartbeatSucceeded()
             case .inactive(let data):
                 applyHeartbeatOverlayConfig(from: data)
-                // INACTIVE → Screen Deactivated: keep credentials + cache, wait for ACTIVE.
-                print("⏳ Heartbeat screenStatus INACTIVE — showing deactivated screen, waiting for ACTIVE")
+                // INACTIVE → Screen Inactivated: keep credentials + cache, wait for ACTIVE.
+                print("⏳ Heartbeat screenStatus INACTIVE — showing inactivated screen, waiting for ACTIVE")
                 isAwaitingActiveStatus = true
                 SentryService.shared.track(SentryAnalyticsEvent.initialHeartbeatFailed, attributes: ["reason": "inactive"])
                 SentryService.shared.breadcrumb(category: "heartbeat", message: "initial_inactive_waiting", data: [:])
-                NotificationCenter.default.post(name: .screenDidDeactivate, object: nil)
+                NotificationCenter.default.post(name: .screenDidInactivate, object: nil)
                 NotificationCenter.default.post(name: .initialHeartbeatSucceeded, object: nil)
                 startHeartbeat()
             case .deleted:
-                // DELETED → Screen Inactivated: clear and stop until re-register.
-                print("🔒 Heartbeat screenStatus DELETED — showing inactivated screen")
+                // DELETED → Screen Deactivated: clear and stop until re-register.
+                print("🔒 Heartbeat screenStatus DELETED — showing deactivated screen")
                 isAwaitingActiveStatus = false
                 SentryService.shared.track(SentryAnalyticsEvent.initialHeartbeatFailed, attributes: ["reason": "deleted"])
                 SentryService.shared.breadcrumb(category: "heartbeat", message: "initial_deleted", data: [:])
-                NotificationCenter.default.post(name: .screenDidInactivate, object: nil)
+                NotificationCenter.default.post(name: .screenDidDeactivate, object: nil)
                 NotificationCenter.default.post(name: .initialHeartbeatSucceeded, object: nil)
             case .requestFailed:
                 print("⏳ Initial heartbeat failed; routing to registration/activation")
@@ -238,18 +238,18 @@ final class HeartbeatAPI {
     }
 
 #if DEBUG
-    /// Manual test: simulate heartbeat `INACTIVE` (Screen Deactivated, wait for ACTIVE).
-    func debugForceDeactivate() {
+    /// Manual test: simulate heartbeat `INACTIVE` (Screen Inactivated, wait for ACTIVE).
+    func debugForceInactivate() {
         isAwaitingActiveStatus = true
-        print("🧪 DEBUG Force INACTIVE (deactivated)")
-        NotificationCenter.default.post(name: .screenDidDeactivate, object: nil)
+        print("🧪 DEBUG Force INACTIVE (inactivated)")
+        NotificationCenter.default.post(name: .screenDidInactivate, object: nil)
     }
 
-    /// Manual test: simulate heartbeat `DELETED` → Screen Inactivated.
-    func debugForceInactivate() {
+    /// Manual test: simulate heartbeat `DELETED` → Screen Deactivated.
+    func debugForceDeactivate() {
         isAwaitingActiveStatus = false
-        print("🧪 DEBUG Force DELETED (inactivated)")
-        NotificationCenter.default.post(name: .screenDidInactivate, object: nil)
+        print("🧪 DEBUG Force DELETED (deactivated)")
+        NotificationCenter.default.post(name: .screenDidDeactivate, object: nil)
     }
 
     /// Manual test: simulate heartbeat `ACTIVE` after `INACTIVE`.
@@ -385,22 +385,22 @@ final class HeartbeatAPI {
                     return .active(body)
                 }
 
-                // INACTIVE → Screen Deactivated (keep credentials/cache, wait for ACTIVE).
+                // INACTIVE → Screen Inactivated (keep credentials/cache, wait for ACTIVE).
                 if screenStatus == "INACTIVE" {
                     await MainActor.run {
                         self.isAwaitingActiveStatus = true
-                        print("💓 Heartbeat screenStatus INACTIVE — Screen Deactivated (cache kept, waiting for ACTIVE)")
-                        NotificationCenter.default.post(name: .screenDidDeactivate, object: nil)
+                        print("💓 Heartbeat screenStatus INACTIVE — Screen Inactivated (cache kept, waiting for ACTIVE)")
+                        NotificationCenter.default.post(name: .screenDidInactivate, object: nil)
                     }
                     return .inactive(body)
                 }
 
-                // DELETED → Screen Inactivated (clear credentials/cache).
+                // DELETED → Screen Deactivated (clear credentials/cache).
                 if screenStatus == "DELETED" {
                     await MainActor.run {
                         self.isAwaitingActiveStatus = false
-                        print("💓 Heartbeat screenStatus DELETED — Screen Inactivated")
-                        NotificationCenter.default.post(name: .screenDidInactivate, object: nil)
+                        print("💓 Heartbeat screenStatus DELETED — Screen Deactivated")
+                        NotificationCenter.default.post(name: .screenDidDeactivate, object: nil)
                     }
                     return .deleted(body)
                 }

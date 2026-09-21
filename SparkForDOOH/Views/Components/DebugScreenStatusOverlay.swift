@@ -29,7 +29,7 @@ struct DebugScreenStatusOverlay: View {
 
             HStack(spacing: 16) {
                 Button {
-                    HeartbeatAPI.shared.debugForceDeactivate()
+                    HeartbeatAPI.shared.debugForceInactivate()
                 } label: {
                     Text("Force INACTIVE")
                         .frame(minWidth: 180, minHeight: 44)
@@ -40,7 +40,7 @@ struct DebugScreenStatusOverlay: View {
                 .prefersDefaultFocus(true, in: focusScope)
 
                 Button {
-                    HeartbeatAPI.shared.debugForceInactivate()
+                    HeartbeatAPI.shared.debugForceDeactivate()
                 } label: {
                     Text("Force DELETED")
                         .frame(minWidth: 180, minHeight: 44)
@@ -102,7 +102,7 @@ struct DebugScreenStatusOverlay: View {
             HeartbeatAPI.shared.debugForceActive()
         } else {
             print("🧪 DEBUG Play/Pause → Force INACTIVE")
-            HeartbeatAPI.shared.debugForceDeactivate()
+            HeartbeatAPI.shared.debugForceInactivate()
         }
     }
 }

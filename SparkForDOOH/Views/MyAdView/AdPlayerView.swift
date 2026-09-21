@@ -12,9 +12,17 @@ import UIKit
 struct AdPlayerView: View {
     @StateObject private var viewModel = AdPlayerViewModel()
     @ObservedObject var listVM: AdPlaylistViewModel
+    @ObservedObject private var networkMonitor = NetworkMonitor.shared
     @Environment(\.scenePhase) private var scenePhase
     @State private var tickerMessage: String? = nil
     @State private var logoUrl: String? = nil
+
+    /// Ads are on screen — keep playing offline from cache; do not cover with Connection Lost.
+    private var hasContentPlaying: Bool {
+        viewModel.currentGroup != nil
+            && !viewModel.isPreloading
+            && !viewModel.isWaitingForPlayableContent
+    }
 
     var body: some View {
         ZStack {
@@ -162,6 +170,14 @@ struct AdPlayerView: View {
                 .zIndex(10)
                 .allowsHitTesting(false)
             }
+
+            // Offline during Sparks loading / waiting — only when nothing is playing yet.
+            // If content is already on screen, keep playing from cache without this overlay.
+            if !networkMonitor.isConnected && !hasContentPlaying {
+                ConnectionLostView()
+                    .transition(.opacity)
+                    .zIndex(30)
+            }
             
         }
         .ignoresSafeArea() // Ensure the entire player fills the tvOS window
@@ -177,6 +193,7 @@ struct AdPlayerView: View {
             HeartbeatAPI.shared.startHeartbeat()
             HeartbeatAPI.shared.kickHeartbeatNow()
             if !HeartbeatAPI.shared.isAwaitingActiveStatus {
+                viewModel.retryMissingDownloadsIfNeeded()
                 viewModel.resumePlayback()
             }
         }
@@ -221,9 +238,11 @@ struct AdPlayerView: View {
             logoUrl = AppRootViewModel.getSavedLogoUrl()
         }
         .onReceive(NotificationCenter.default.publisher(for: .screenDidDeactivate)) { _ in
+            // DELETED — credentials cleared; stop quest (API also guards on empty secureKey).
             viewModel.pauseForDeactivation()
         }
         .onReceive(NotificationCenter.default.publisher(for: .screenDidInactivate)) { _ in
+            // INACTIVE — pause playback + quest until ACTIVE.
             viewModel.pauseForDeactivation()
         }
         .onReceive(NotificationCenter.default.publisher(for: .heartbeatScreenStatusActive)) { _ in

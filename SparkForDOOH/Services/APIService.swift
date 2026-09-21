@@ -18,13 +18,21 @@ final class APIService {
     func fetchItemSeqInfo(screenId: String, reqNum: Int) async throws -> ItemSeqInfoResponse {
         try NetworkMonitor.shared.requireOnline()
         await TVRemoteConfigService.waitUntilLaunchConfigNetworkFinished()
+
+        // After DELETED / credential clear there is no secureKey — never call quest.
+        let secureKey = (await AppRootViewModel.getSavedSecureKey() ?? "")
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !secureKey.isEmpty else {
+            print("📵 Quest skipped — no secureKey (screen deactivated or not activated)")
+            throw AppError.offline
+        }
+
         let url = TVRemoteConfigStore.shared.drsQuestURL()
 
         var request = URLRequest(url: url)
         request.httpMethod = "POST"
         request.setValue("application/json", forHTTPHeaderField: "Content-Type")
         // quest: x-api-key = secureKey from activation poll; x-dev-id = device code.
-        let secureKey = await AppRootViewModel.getSavedSecureKey() ?? ""
         request.setValue(secureKey, forHTTPHeaderField: "x-api-key")
         let deviceCode = await AppRootViewModel.getSavedDeviceCode() ?? ""
         request.setValue(deviceCode, forHTTPHeaderField: "x-dev-id")
