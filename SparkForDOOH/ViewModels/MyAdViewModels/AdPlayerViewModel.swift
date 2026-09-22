@@ -73,6 +73,8 @@ final class AdPlayerViewModel: ObservableObject {
     fileprivate var measuredMainVideoDuration: Double?
     /// Creative currently attached to `activePlayer` (for re-binding end observer after L-scale).
     fileprivate var activeVideoAd: AdItemModel?
+    /// INACTIVE / DELETED overlay is up — block every play() until ACTIVE resumes.
+    fileprivate var isPlaybackSuspended = false
     
     // MARK: - Sync failure tracking
     fileprivate var consecutiveSyncFailures = 0
@@ -256,7 +258,14 @@ extension AdPlayerViewModel {
     /// Call from the view when scenePhase becomes .active.
     func resumePlayback() {
         guard !disablePreloadingAndValidation else { return }
+        guard !isPlaybackSuspended else {
+            print("⏸️ Resume ignored — screen inactive/deactivated")
+            silenceActivePlayer()
+            return
+        }
         if activePlayer != nil, currentGroup != nil {
+            activePlayer?.isMuted = false
+            activePlayer?.volume = 1
             activePlayer?.play()
             print("▶️ Resumed playback after app became active")
         }
@@ -275,17 +284,31 @@ extension AdPlayerViewModel {
     
     /// Pause playback on deactivation — keep playlist + disk/memory caches for resume.
     /// Always stops the quest sync timer (no DRS calls until re-activation).
+    /// Mute as well: the inactivated/deactivated screen is an overlay, so a later play()
+    /// (wake, network, L-shape repeat) would otherwise keep audio going underneath.
     func pauseForDeactivation() {
+        isPlaybackSuspended = true
         stopAutoSync()
         timer?.invalidate()
         timer = nil
-        activePlayer?.pause()
+        // Drop in-flight end/repeat callbacks that would call play() again.
+        videoEndEpoch &+= 1
+        silenceActivePlayer()
         isPlayerReadyForOverlay = false
-        print("⏸️ Playback paused — quest sync timer stopped (deactivated/inactivated)")
+        print("⏸️ Playback paused and muted — quest sync timer stopped (deactivated/inactivated)")
+    }
+
+    /// Hard-silence the current player. Safe to call repeatedly while suspended.
+    func silenceActivePlayer() {
+        activePlayer?.pause()
+        activePlayer?.rate = 0
+        activePlayer?.isMuted = true
+        activePlayer?.volume = 0
     }
 
     /// Resume existing playlist after ACTIVE; restart quest sync timer when credentials exist.
     func resumeAfterReactivation() {
+        isPlaybackSuspended = false
         isWaitingForPlayableContent = false
         isPlayerReadyForOverlay = true
         // Always clear any stale timer, then start fresh only if secureKey is back.
@@ -297,6 +320,8 @@ extension AdPlayerViewModel {
             print("📵 Quest sync not restarted — no secureKey yet")
         }
         if activePlayer != nil, currentGroup != nil {
+            activePlayer?.isMuted = false
+            activePlayer?.volume = 1
             activePlayer?.play()
             // Restart L-shape / image timers if needed for the current group.
             if let group = currentGroup {
@@ -654,6 +679,11 @@ private extension AdPlayerViewModel {
 
     /// Play the current group (from local cache).
     func playCurrentGroup() {
+        guard !isPlaybackSuspended else {
+            print("⏸️ Playback held — not starting group (inactive/deactivated)")
+            silenceActivePlayer()
+            return
+        }
         // Skip ahead past any remaining non-displayable groups (defensive).
         while currentIndex < groupedAds.count {
             let candidate = groupedAds[currentIndex]
@@ -1254,7 +1284,14 @@ private extension AdPlayerViewModel {
 
         let player = AVPlayer(url: playURL)
         activePlayer = player
-        player.play()
+        if isPlaybackSuspended {
+            player.isMuted = true
+            player.volume = 0
+            player.pause()
+            print("⏸️ New player created while inactive/deactivated — kept silent")
+        } else {
+            player.play()
+        }
         
         // Clear Now Playing info to suppress system UI
         MediaSessionHelper.shared.clearNowPlayingInfo()
@@ -1367,6 +1404,10 @@ private extension AdPlayerViewModel {
                             return Date().timeIntervalSince(started) + Self.lShapeDurationBufferSeconds >= Double(C)
                         }()
                         if !holdFilled {
+                            if self.isPlaybackSuspended {
+                                self.silenceActivePlayer()
+                                return
+                            }
                             print("🔁 Restarting video to fill L-shape image duration")
                             player.seek(to: .zero)
                             player.play()
